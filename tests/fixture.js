@@ -1,13 +1,20 @@
 // Provider simulator for browser tests only. Never included in the installable extension ZIP.
 let releaseLoading;
 const loadingGate = new URLSearchParams(location.search).has("hold")
-  ? new Promise(resolve => { releaseLoading = resolve; }) : Promise.resolve();
+  ? new Promise((resolve) => {
+      releaseLoading = resolve;
+    })
+  : Promise.resolve();
 if (releaseLoading) {
   const release = document.createElement("button");
   release.id = "release-loading";
   release.textContent = "Finish loading test account";
-  release.style.cssText = "position:fixed;bottom:10px;right:10px;z-index:2147483640";
-  release.onclick = () => { releaseLoading(); release.remove(); };
+  release.style.cssText =
+    "position:fixed;bottom:10px;right:10px;z-index:2147483640";
+  release.onclick = () => {
+    releaseLoading();
+    release.remove();
+  };
   document.documentElement.append(release);
 }
 window.chrome = {
@@ -48,7 +55,9 @@ composer.close = function () {
 let account = sessionStorage.getItem("fixture-account") || "alice";
 document.querySelector(
   '[data-testid="SideNav_AccountSwitcher_Button"]',
-).textContent = "Test " + account + " @" + account;
+).textContent = new URLSearchParams(location.search).has("signedout")
+  ? "Sign in"
+  : "Test " + account + " @" + account;
 document.querySelector("#switch").onclick = () => {
   account = account === "alice" ? "bob" : "alice";
   sessionStorage.setItem("fixture-account", account);

@@ -183,6 +183,8 @@
   document.documentElement.append(launcher);
   const { host, root } = globalThis.MyXShell.mount();
   host.dataset.initialized = "true";
+  if (host.style.display === "block") document.body.inert = true;
+  let restoreReaderScroll = false;
   let view = "home";
   const R = (s) => root.querySelector(s);
   let timer;
@@ -233,14 +235,36 @@
       p.context ||
       (M.validHandle(p.replyTo) ? "Replying to @" + p.replyTo : "");
     let date = new Date(Number.isFinite(p.eventTime) ? p.eventTime : p.time);
-    return `<article class="post" data-post="${p.id}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${p.video ? `<a class="secondary" href="${p.url}">Watch video on X</a>` : ""}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}">${icon(k)}${esc(p.counts?.[k] || "")}</button>`).join("")}</div></div></div></article>`;
+    return `<article class="post" data-post="${p.id}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${p.video ? `<a class="secondary" href="${p.url}">Watch video on X</a>` : ""}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div></div></div></article>`;
   }
   function render() {
     if (visible) {
-      try { sessionStorage.setItem("myx-ui", JSON.stringify({ surface, view, replies:prefs.replies, reposts:prefs.reposts, discovery:prefs.discovery })); } catch {}
+      try {
+        sessionStorage.setItem(
+          "myx-ui",
+          JSON.stringify({
+            surface,
+            view,
+            replies: prefs.replies,
+            reposts: prefs.reposts,
+            discovery: prefs.discovery,
+          }),
+        );
+      } catch {}
     }
+    const nativeAccount = $('[data-testid="SideNav_AccountSwitcher_Button"]');
+    const displayName =
+      nativeAccount?.innerText
+        .split("\n")
+        .find((t) => t.trim() && !t.trim().startsWith("@"))
+        ?.trim() || (account ? "@" + account : "Sign in on X");
+    const avatar = safeURL(nativeAccount?.querySelector("img")?.src);
     R("#account").innerHTML =
-      `<b>${account ? "@" + esc(account) : "Sign in on X"}</b>Local to this tab`;
+      `<span class="avatar">${avatar ? `<img src="${esc(avatar)}" alt="">` : esc(displayName[0])}</span><span class="identity"><b>${esc(displayName)}</b><span>${account ? "@" + esc(account) : ""}</span></span><span class="account-more" aria-hidden="true">···</span>`;
+    R("#account").setAttribute(
+      "aria-label",
+      account ? "Open your profile @" + account : "Sign in on X",
+    );
     R("#settings").innerHTML = settingsMarkup();
     R("#native").textContent =
       surface === "feed" ? "Back to X" : "Back to feed";
@@ -262,6 +286,15 @@
             sources: "Feed sources",
             settings: "Feed settings",
           }[view];
+    root.querySelectorAll(".nav").forEach((b) => {
+      const active =
+        surface === "feed"
+          ? b.dataset.view === view
+          : b.dataset.native === surface;
+      b.classList.toggle("active", active);
+      if (active) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
     if (surface !== "feed") {
       R("#feed").innerHTML = "";
       alignNative();
@@ -272,9 +305,6 @@
       .forEach((b) =>
         b.classList.toggle("active", prefs.tab === b.dataset.tab),
       );
-    root
-      .querySelectorAll(".nav[data-view]")
-      .forEach((b) => b.classList.toggle("active", view === b.dataset.view));
     if (!account) {
       R("#feed").innerHTML =
         '<div class="empty"><h2>Sign in directly on X.</h2><p>MyX uses the account in this browser tab. Your password stays with X.</p><button class="primary blue" data-native="login">Sign in on X</button></div>';
@@ -300,6 +330,10 @@
     R("#feed").innerHTML = ps.length
       ? ps.map(postMarkup).join("")
       : `<div class="empty"><h2>${prefs.search ? "No matching posts." : "Your people, in time order."}</h2><p>${prefs.search ? "Try a different search." : "Start by collecting your Following feed. Then collect For You and verify discovery authors to build your 10-to-1 mix."}</p><button class="primary blue" data-view="sources">Set up your feed</button></div>`;
+    if (restoreReaderScroll) {
+      R(".app").scrollTop = prefs.readerScroll || 0;
+      restoreReaderScroll = false;
+    }
     status(
       ps.length
         ? `${ps.filter((p) => !p.discovery).length} following activities · ${ps.filter((p) => p.discovery).length} discovery posts · ${data.updated ? "collected " + new Date(data.updated).toLocaleTimeString() : ""}`
@@ -329,6 +363,13 @@
     document.body.inert = false;
     host.style.display = "none";
     launcher.style.display = "";
+    if (location.hash === "#myx")
+      history.replaceState(
+        history.state,
+        "",
+        location.pathname + location.search,
+      );
+    save();
   }
   launcher.onclick = show;
   R("#native").onclick = () => {
@@ -758,6 +799,12 @@
       await navigate("/settings/muted/all", { type: "mutes" });
     if (b.dataset.act)
       act(b.closest("[data-post]").dataset.post, b.dataset.act);
+    if (b.dataset.account && account)
+      await openSurface("/" + account, "profile");
+    else if (b.dataset.account) {
+      hide();
+      location.assign("/i/flow/login");
+    }
     if (b.id === "verify") verify();
     if (b.id === "clear") {
       const muted = data.muted || [],
@@ -837,6 +884,7 @@
     host.style.setProperty("--myx-native-width", rect.width + "px");
   }
   function leaveNative() {
+    restoreReaderScroll = surface !== "feed";
     surface = "feed";
     document.documentElement.classList.remove("myx-native");
     document.body.inert = true;
@@ -844,6 +892,7 @@
   }
   async function openSurface(url, kind) {
     if (!url) return;
+    if (surface === "feed") prefs.readerScroll = R(".app").scrollTop;
     surface = kind;
     await navigate(url, { type: "surface" });
   }
@@ -883,8 +932,14 @@
     closeAccountSearch();
     openSurface(u.href, M.statusLink(u.href) ? "thread" : "profile");
   });
+  let nativePath = location.pathname;
   setInterval(() => {
     if (!visible) return;
+    if (surface !== "feed" && nativePath !== location.pathname) {
+      nativePath = location.pathname;
+      surface = M.surfaceForPath(nativePath) || surface;
+      render();
+    }
     if (surface !== "feed") {
       alignNative();
       for (const a of all('article[data-testid="tweet"]')) {
@@ -1011,6 +1066,8 @@
     prefs = { ...prefs, ...saved.prefs, search: "" };
     pending = saved.pending;
     surface = saved.surface || "feed";
+    if (surface !== "feed")
+      surface = M.surfaceForPath(location.pathname) || surface;
     view = saved.view || "home";
     data.muted ||= [];
     data.xMuted ||= [];
@@ -1034,7 +1091,9 @@
   render();
   host.classList.remove("booting");
   host.removeAttribute("aria-busy");
-  root.querySelectorAll("button:disabled,input:disabled").forEach(e => { if (!e.closest("#feed")) e.disabled = false; });
+  root.querySelectorAll("button:disabled,input:disabled").forEach((e) => {
+    if (!e.closest("#feed")) e.disabled = false;
+  });
   if (
     location.hash === "#myx" ||
     saved?.open ||

@@ -2,7 +2,11 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 const manifest = JSON.parse(fs.readFileSync("extension/manifest.json"));
 if (manifest.manifest_version !== 3) throw Error("MV3 required");
-for (const f of ["background.js", "content.js", "engine.js", "popup.js"])
+for (const f of new Set([
+  manifest.background.service_worker,
+  "popup.js",
+  ...manifest.content_scripts.flatMap((c) => c.js || []),
+]))
   execFileSync(process.execPath, ["--check", "extension/" + f]);
 for (const f of [
   ...manifest.content_scripts.flatMap((c) => c.js || []),

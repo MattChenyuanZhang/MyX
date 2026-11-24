@@ -1,11 +1,9 @@
 {
   "manifest_version": 3,
   "name": "MyX \u2014 Your following, your pace",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "A chronological reader for posts loaded from your X Following feed, with one verified For You discovery after every ten posts. Uses X's native controls.",
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
   "background": {
     "service_worker": "background.js"
   },
@@ -15,28 +13,14 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://x.com/*"
-      ],
-      "js": [
-        "shell.js",
-        "boot.js",
-        "engine.js",
-        "content.js"
-      ],
-      "css": [
-        "launcher.css"
-      ],
+      "matches": ["https://x.com/*"],
+      "js": ["shell.js", "boot.js", "engine.js", "content.js"],
+      "css": ["launcher.css"],
       "run_at": "document_start"
     },
     {
-      "matches": [
-        "https://x.com/*"
-      ],
-      "js": [
-        "timeline.js",
-        "observe.js"
-      ],
+      "matches": ["https://x.com/*"],
+      "js": ["timeline.js", "observe.js"],
       "run_at": "document_start",
       "world": "MAIN"
     }

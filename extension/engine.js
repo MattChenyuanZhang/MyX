@@ -52,6 +52,19 @@
           "&src=typed_query&f=user"
       : null;
   }
+  function surfaceForPath(path) {
+    if (/^\/i\/history(?:\/|$)/.test(path)) return "history";
+    if (/^\/i\/bookmarks(?:\/|$)/.test(path)) return "bookmarks";
+    if (/^\/search(?:\/|$)/.test(path)) return "search";
+    if (/^\/[A-Za-z0-9_]{1,15}\/status\/\d+(?:\/|$)/.test(path))
+      return "thread";
+    if (
+      /^\/[A-Za-z0-9_]{1,15}\/?$/.test(path) &&
+      !["/home", "/explore", "/notifications", "/settings"].includes(path)
+    )
+      return "profile";
+    return null;
+  }
   function statusLink(raw) {
     try {
       let u = new URL(raw, "https://x.com");
@@ -213,6 +226,7 @@
     };
   }
   root.MyXModel = {
+    surfaceForPath,
     mentionParts,
     searchAccounts,
     accountSearchUrl,
