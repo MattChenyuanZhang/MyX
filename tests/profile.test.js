@@ -209,3 +209,80 @@ test("native profile parser checks the exact handle and reads bio, counts and re
   assert.equal(p.avatar, "https://pbs.twimg.com/profile_images/example.jpg");
   assert.equal(P.read(doc, "someoneelse"), null);
 });
+
+test("compact messaging navigation identifies the account from its real Profile link", () => {
+  const doc = {
+    querySelector: (s) =>
+      s.includes("AccountSwitcher")
+        ? { textContent: "Account menu" }
+        : s.includes("AppTabBar_Profile_Link")
+          ? { getAttribute: () => "/Alice" }
+          : null,
+  };
+  assert.equal(P.currentAccount(doc), "alice");
+  const foreign = {
+    querySelector: (s) =>
+      s.includes("AccountSwitcher")
+        ? { textContent: "" }
+        : { getAttribute: () => "https://evil.test/alice" },
+  };
+  assert.equal(P.currentAccount(foreign), "");
+});
+test("profile lookup waits for delayed native avatar hydration before replying", async () => {
+  let clock = 1000,
+    polls = 0,
+    result;
+  const photo = {
+    getAttribute: () => "/writer/photo",
+    textContent: "",
+    querySelector: () => ({
+      src: polls >= 2 ? "https://pbs.twimg.com/profile_images/actual.jpg" : "",
+    }),
+  };
+  const name = { innerText: "Writer\n@writer", querySelector: () => null };
+  const main = {
+    querySelector: (s) =>
+      s.includes("UserName")
+        ? name
+        : s.includes("UserDescription")
+          ? { textContent: "Actual biography" }
+          : null,
+    querySelectorAll: (s) => (s === "a[href]" ? [photo] : []),
+  };
+  const doc = {
+    querySelector: (s) =>
+      s.includes("AccountSwitcher")
+        ? { textContent: "Alice @alice" }
+        : s.includes("primaryColumn")
+          ? main
+          : null,
+  };
+  const context = vm.createContext({
+    URL,
+    document: doc,
+    Date: { now: () => clock },
+    setTimeout: (fn) => {
+      clock += 200;
+      polls++;
+      Promise.resolve().then(fn);
+    },
+    chrome: {
+      runtime: {
+        sendMessage: async (m) => {
+          if (m.type === "PROFILE_CONTEXT")
+            return { account: "alice", handle: "writer" };
+          result = m;
+          return { ok: true };
+        },
+      },
+    },
+  });
+  vm.runInContext(fs.readFileSync("extension/profile.js", "utf8"), context);
+  await context.MyXProfile.lookup();
+  assert.equal(
+    result.profile.avatar,
+    "https://pbs.twimg.com/profile_images/actual.jpg",
+  );
+  assert.equal(result.profile.bio, "Actual biography");
+  assert.equal(polls, 2);
+});

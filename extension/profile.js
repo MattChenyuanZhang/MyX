@@ -18,7 +18,7 @@
       name: text(p.name, 200) || p.handle,
       avatar:
         typeof p.avatar === "string" &&
-        /^https:\/\/pbs\.twimg\.com\//.test(p.avatar)
+        /^https:\/\/(?:pbs|abs)\.twimg\.com\//.test(p.avatar)
           ? p.avatar.slice(0, 2000)
           : "",
       bio: text(p.bio, 2000),
@@ -28,6 +28,23 @@
       verified: p.verified === true,
       capturedAt: Number.isFinite(p.capturedAt) ? p.capturedAt : Date.now(),
     };
+  }
+  function currentAccount(doc) {
+    const text =
+      doc.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]')
+        ?.textContent || "";
+    const fromText = text.match(/@([A-Za-z0-9_]{1,15})\b/)?.[1]?.toLowerCase();
+    if (valid(fromText)) return fromText;
+    const link = doc.querySelector('[data-testid="AppTabBar_Profile_Link"]');
+    try {
+      const u = new URL(link?.getAttribute("href") || "", "https://x.com");
+      const h = u.pathname
+        .match(/^\/([A-Za-z0-9_]{1,15})\/?$/)?.[1]
+        ?.toLowerCase();
+      return u.origin === "https://x.com" && valid(h) ? h : "";
+    } catch {
+      return "";
+    }
   }
   function read(doc, handle) {
     if (!valid(handle)) return null;
@@ -92,16 +109,18 @@
       type: "PROFILE_CONTEXT",
     });
     if (!context?.handle || !context?.account) return;
+    let profileReadyAt = 0;
     for (let n = 0; n < 60; n++) {
-      const accountText =
-        document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]')
-          ?.textContent || "";
-      const account = accountText
-        .match(/@([A-Za-z0-9_]{1,15})\b/)?.[1]
-        .toLowerCase();
+      const account = currentAccount(document);
       if (account && account !== context.account) break;
       const profile = read(document, context.handle);
-      if (account === context.account && profile) {
+      if (account === context.account && profile && !profileReadyAt)
+        profileReadyAt = Date.now();
+      if (
+        account === context.account &&
+        profile &&
+        (profile.avatar || Date.now() - profileReadyAt >= 1200)
+      ) {
         await chrome.runtime.sendMessage({
           type: "PROFILE_RESULT",
           account,
@@ -117,5 +136,5 @@
       error: "X did not return this profile.",
     });
   }
-  scope.MyXProfile = { clean, read, lookup };
+  scope.MyXProfile = { clean, currentAccount, read, lookup };
 })(globalThis);

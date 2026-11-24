@@ -62,9 +62,21 @@
     return saveQueue;
   }
   function readAccount() {
-    let t =
-      $('[data-testid="SideNav_AccountSwitcher_Button"]')?.textContent || "";
-    return M.handle(t.match(/@([\w]{1,15})\b/)?.[1]);
+    return globalThis.MyXProfile.currentAccount(document);
+  }
+  function persistUI() {
+    try {
+      sessionStorage.setItem(
+        "myx-ui",
+        JSON.stringify({
+          surface,
+          view,
+          replies: prefs.replies,
+          reposts: prefs.reposts,
+          discovery: prefs.discovery,
+        }),
+      );
+    } catch {}
   }
   function safeURL(u) {
     if (!u) return "";
@@ -296,7 +308,12 @@
     const response = await profileRequests.get(requestKey);
     profileRequests.delete(requestKey);
     if (account !== owner || readAccount() !== owner) return;
-    const profile = globalThis.MyXProfile.clean(response?.profile);
+    const profile = globalThis.MyXProfile.clean(
+      response?.profile && {
+        ...response.profile,
+        avatar: response.profile.avatar || base.avatar,
+      },
+    );
     if (profile?.handle === h) {
       data.profiles ||= {};
       delete data.profiles[h];
@@ -383,20 +400,7 @@
     return `<article class="post" data-post="${p.id}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${p.video ? `<a class="secondary" href="${p.url}">Watch video on X</a>` : ""}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div></div></div></article>`;
   }
   function render() {
-    if (visible) {
-      try {
-        sessionStorage.setItem(
-          "myx-ui",
-          JSON.stringify({
-            surface,
-            view,
-            replies: prefs.replies,
-            reposts: prefs.reposts,
-            discovery: prefs.discovery,
-          }),
-        );
-      } catch {}
-    }
+    if (visible) persistUI();
     const nativeAccount = $('[data-testid="SideNav_AccountSwitcher_Button"]');
     const displayName =
       nativeAccount?.innerText
@@ -633,6 +637,7 @@
     await save();
     visible = true;
     sessionStorage.setItem("myx-shell-open", "1");
+    persistUI();
     await save();
     const destination = new URL(target, location.origin);
     location.assign(

@@ -78,6 +78,8 @@ document.querySelector("#switch").onclick = () => {
     '[data-testid="SideNav_AccountSwitcher_Button"]',
   ).textContent = "Test " + account + " @" + account;
 };
+if (new URLSearchParams(location.search).has("signedout"))
+  document.querySelector('[data-testid="AppTabBar_Profile_Link"]').remove();
 const native = document.querySelector("#timeline");
 let src = "Following";
 const notice = (s) => (document.querySelector("#notice").textContent = s);
@@ -124,6 +126,12 @@ function show() {
     return;
   }
   if (location.pathname.startsWith("/i/chat")) {
+    document.querySelector(
+      '[data-testid="SideNav_AccountSwitcher_Button"]',
+    ).textContent = "Test " + account;
+    document
+      .querySelector('[data-testid="AppTabBar_Profile_Link"]')
+      .setAttribute("href", "/" + account);
     native.innerHTML =
       '<h2>Messages</h2><p>Test conversation</p><textarea aria-label="Message text"></textarea><button id="fixture-send-message">Send</button>';
     native.querySelector("button").onclick = () => {

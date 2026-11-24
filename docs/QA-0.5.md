@@ -1,10 +1,10 @@
-# MyX 0.5.0 verification
+# MyX 0.5.1 verification
 
 This update adds profile preview cards, native Lists and Messages destinations, and public ZIP distribution. No new Chrome permissions are requested.
 
 ## Automated verification
 
-29 tests pass. New coverage checks profile field bounds, safe image origins, exact profile-handle parsing, cross-account rejection, inactive lookup-tab creation, owned-tab cleanup, timeouts, and public timeline profile extraction without authentication fields. Existing native-route tests include Lists, Messages and X messaging security routes. Runtime syntax and manifest checks pass.
+31 tests pass. New coverage checks profile field bounds, safe image origins, exact profile-handle parsing, cross-account rejection, inactive lookup-tab creation, owned-tab cleanup, timeouts, and public timeline profile extraction without authentication fields. Existing native-route tests include Lists, Messages and X messaging security routes. Runtime syntax and manifest checks pass.
 
 ## Local browser verification
 
@@ -20,9 +20,16 @@ A public v0.4.0 release is available at the stable `releases/latest/download/myx
 
 The ZIP requires Chrome's unpacked-extension installation steps. It is not a Chrome Web Store listing.
 
-## Final installed 0.5.0 checks
+## Final installed 0.5.1 checks
 
-Pending the user's extension reload. Live profile-preview behavior, lookup-tab cleanup, and sidebar destinations must be observed before marking this section passed.
+The initial installed 0.5.0 check successfully loaded a real profile biography and follower/following counts inside a preview, closed its inactive lookup tab, opened the full profile, and opened Lists with the correct active selection. It exposed two issues repaired in 0.5.1:
+
+- Native profile text can hydrate before its avatar. Lookup now briefly waits for the image and preserves a known avatar as a fallback.
+- X's compact messaging account switcher omits the handle. Account detection now reads X's real Profile navigation link when the switcher text lacks it, preserving correct account identity and isolation. The target surface is persisted before navigation so the loading shell shows Messages immediately.
+
+Both repairs have automated regression tests. The browser fixture now reproduces the compact switcher with no handle; Messages retains the signed-in account, survives refresh and keeps its native controls operable.
+
+Final installed 0.5.1 avatar and Messages checks are pending the user's extension reload.
 
 X's existing messaging route was observed to lead to its native security setup for this account. MyX retains X's own setup; the test does not change security credentials, publish messages or create lists on the live account. Full inbox access depends on completing X's account-specific security flow.
 
