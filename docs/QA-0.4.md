@@ -29,6 +29,15 @@ This pass addresses startup consistency, X-style hover states and sidebar sizing
 
 ## Final installed-extension checks
 
-Pending the user reloading the unpacked 0.4.0 extension. The fixture results above are not a substitute for verification against live X.
+Passed against installed 0.4.0 in the signed-in desktop Chrome session:
+
+- Opened a fresh X tab at the MyX launch URL and captured the loading state. The shared shell was already present, the old centered loader was absent, and sidebar bounds remained exactly x=239.5px, y=58px, width=259px, height=58.25px after account hydration.
+- Confirmed native X-aligned 20px labels, 26.25px icons and a 600px center column. The sidebar remained in the same position when moving from the reader to a real profile.
+- Navigation hover computed `rgba(15,20,25,0.1)` and post hover computed `rgba(0,0,0,0.03)` on live MyX cards.
+- A native profile showed the Profile title and removed the stale Home selection. History received the correct active selection; refreshing it preserved both the History title and sidebar bounds through loading and hydration.
+- Opened a native reply composer for the selected real post. Visual review and a hit test at Close confirmed the composer was above MyX. Closed it empty; no reply was published.
+- Both native floating drawers computed `display:none` while MyX was open. No browser console errors were observed during the final live checks.
+
+Repost/undo synchronization was exercised against the owned local provider fixture, not by publishing reposts on the live account. This pass did not publish posts or change follow relationships. Screenshots of the live session remain outside this public repository.
 
 The timeline remains limited to activities X returns to the browser; see [the activity/data verification report](QA-0.3.md) for coverage and recommendation-source limits.
