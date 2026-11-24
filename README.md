@@ -16,7 +16,9 @@ The download includes **START-HERE.html** with a browser-readable guide. [Full i
 
 This is an unpacked extension, not a Chrome Web Store listing. Normal “Add to Chrome” installation needs a Store release. Every person installs their own copy and uses their own X session; the earlier demo website is not the extension.
 
-In **Feed sources**, collect **Following** and **For You**. Verify unknown discovery authors when requested. Eligible For You posts appear after each ten visible following activities; collect again to load more.
+In **Feed sources**, collect **Following** and **For You**. Verify unknown discovery authors when requested. Open **Feed settings** and drag **Discovery share** from 0% (following only) to 100% (discovery only). The live preview shows your target mix. The default is 10 following activities plus 1 discovery post (about 9.1% discovery); Reset restores it. Your choice is saved locally for each X account. Collect again to load more candidates.
+
+Discovery comes from your own X For You feed. MyX spaces eligible recommendations between following activities while retaining their time order. The selected percentage is a target: when eligible discovery runs out, remaining following activities still appear without repeating recommendations. Replies and Reposts tabs retain their focused filters.
 
 ## Interaction behavior
 
@@ -42,11 +44,11 @@ MyX imports the native X muted-account list before collection (refreshed when mo
 
 Discovery is taken only from the actual For You tab. Unknown relationship status is excluded until verified. Authors of captured following posts or reposts and posts already present in Following are excluded. Verification is a snapshot: following someone later in another tab may make the relationship stale; recollect/clear to refresh. X can change its UI, language, policies, or session behavior. English X UI is currently required.
 
-Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.5.md` for preview, navigation and download checks and `docs/QA-0.4.md` for startup/UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
+Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.6.md` for feed-mix checks, `docs/QA-0.5.md` for preview, navigation and download checks and `docs/QA-0.4.md` for startup/UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
 
 ## Privacy
 
-Only `storage` permission and a content script on `https://x.com/*` are declared. No cookie access, direct private-API calls, password collection, access-token collection, telemetry, or external servers. The page-world observer wraps fetch/XHR only to parse copies of existing X timeline responses; it does not read request headers or bodies and returns X's original requests/responses unchanged. Collected data is in Chrome session storage, isolated by tab and observed X account. Closing a tab removes its stored data. Account changes clear its collection. Mute preferences persist in Chrome local storage under separate account keys; feed preferences remain session-local. Reading X's DOM is necessary for this functionality; protected posts may be present locally, so post content and screenshots must never be committed to Git.
+Only `storage` permission and a content script on `https://x.com/*` are declared. No cookie access, direct private-API calls, password collection, access-token collection, telemetry, or external servers. The page-world observer wraps fetch/XHR only to parse copies of existing X timeline responses; it does not read request headers or bodies and returns X's original requests/responses unchanged. Collected data is in Chrome session storage, isolated by tab and observed X account. Closing a tab removes its stored data. Account changes clear its collection. Mute preferences and discovery-ratio choices persist in Chrome local storage under separate account keys; other feed preferences remain session-local. Reading X's DOM is necessary for this functionality; protected posts may be present locally, so post content and screenshots must never be committed to Git.
 
 Profile previews use public profile fields from already-received timelines when available. For a missing profile, a preview can open a temporary inactive X tab, read its native profile, and close the tab; a tab explicitly opened by the user is left open. Profile caches remain account/tab-local and are limited to 100 entries. No messaging content is captured by this lookup.
 

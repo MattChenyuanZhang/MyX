@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MyX \u2014 Your following, your pace",
-  "version": "0.5.1",
-  "description": "A chronological reader for posts loaded from your X Following feed, with one verified For You discovery after every ten posts. Uses X's native controls.",
+  "version": "0.6.0",
+  "description": "A chronological reader for posts loaded from your X Following feed, with an adjustable share of verified discoveries from your own For You feed. Uses X's native controls.",
   "permissions": ["storage"],
   "background": {
     "service_worker": "background.js"

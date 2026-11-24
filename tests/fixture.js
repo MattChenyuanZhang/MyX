@@ -20,6 +20,17 @@ if (releaseLoading) {
 window.chrome = {
   runtime: {
     sendMessage: async (m) => {
+      if (m.type === "MIX_GET")
+        return JSON.parse(
+          sessionStorage.getItem("fixture-mix-" + m.account) || "null",
+        );
+      if (m.type === "MIX_SET") {
+        sessionStorage.setItem(
+          "fixture-mix-" + m.account,
+          JSON.stringify({ percent: m.percent, enabled: m.enabled }),
+        );
+        return { ok: true };
+      }
       if (m.type === "PROFILE_GET")
         return {
           profile: {

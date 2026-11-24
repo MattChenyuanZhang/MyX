@@ -221,10 +221,73 @@
     return ["replies", "reposts", "discovery"]
       .map(
         (k) =>
-          `<label class="setting">${{ replies: "Include replies", reposts: "Include reposts", discovery: "1 discovery per 10 posts" }[k]}<input type="checkbox" data-pref="${k}" ${prefs[k] ? "checked" : ""}></label>`,
+          `<label class="setting">${{ replies: "Include replies", reposts: "Include reposts", discovery: "Include discovery" }[k]}<input type="checkbox" data-pref="${k}" ${prefs[k] ? "checked" : ""}></label>`,
       )
       .join("");
   }
+  const percentLabel = (p) => Number(p.toFixed(1)) + "%";
+  function updateMixControls() {
+    const p = M.discoveryPercent(prefs);
+    const output = R("#mix-output");
+    if (output)
+      output.textContent =
+        percentLabel(p) +
+        " discovery · " +
+        percentLabel(100 - p) +
+        " following";
+    const input = R("#discovery-ratio");
+    if (input)
+      input.setAttribute("aria-valuetext", percentLabel(p) + " discovery");
+    const pattern = R("#mix-pattern");
+    if (pattern)
+      pattern.innerHTML = Array.from(
+        { length: 20 },
+        (_, i) =>
+          `<i class="${Math.floor(((i + 1) * p) / 100 + 1e-9) > Math.floor((i * p) / 100 + 1e-9) ? "discovery-slot" : "following-slot"}"></i>`,
+      ).join("");
+    const hint = R("#mix-hint");
+    if (hint)
+      hint.textContent =
+        prefs.discovery === false
+          ? "Discovery is paused. Turn on Include discovery or move the slider to resume."
+          : p === 0
+            ? "Following only."
+            : p === 100
+              ? "Discovery only, from eligible posts in your X For You feed."
+              : Math.abs(p - 100 / 11) < 1e-6
+                ? "Original mix: 10 following activities, then 1 discovery post."
+                : "Your following activities stay in time order; discovery is spaced between them.";
+  }
+  function mixMarkup() {
+    return `<section class="mix-control" aria-labelledby="mix-title"><h3 id="mix-title">Your feed mix</h3><label for="discovery-ratio">Discovery share</label><output id="mix-output" for="discovery-ratio" aria-live="polite"></output><input id="discovery-ratio" type="range" min="0" max="100" step="any" value="${M.discoveryPercent(prefs)}" aria-label="Discovery percentage"><div class="mix-endpoints"><span>Following only</span><span>Discovery only</span></div><div id="mix-pattern" aria-hidden="true"></div><p id="mix-hint"></p><button class="secondary" id="reset-mix">Reset to 10 following + 1 discovery</button><p class="tiny">This is a target mix for the main Following feed. Replies and Reposts tabs stay focused on those activities. If eligible discovery posts run out, MyX shows the remaining following posts without repeats. Collect For You to replenish discovery.</p></section>`;
+  }
+  function saveMix() {
+    save();
+    msg({
+      type: "MIX_SET",
+      account,
+      percent: M.discoveryPercent(prefs),
+      enabled: prefs.discovery !== false,
+    });
+  }
+  let mixSaveTimer;
+  root.addEventListener("input", (e) => {
+    if (!e.isTrusted || e.target.id !== "discovery-ratio") return;
+    prefs.discoveryPercent = Math.round(Number(e.target.value) * 10) / 10;
+    prefs.discovery = true;
+    root
+      .querySelectorAll('[data-pref="discovery"]')
+      .forEach((e) => (e.checked = true));
+    updateMixControls();
+    clearTimeout(mixSaveTimer);
+    mixSaveTimer = setTimeout(saveMix, 150);
+  });
+  root.addEventListener("change", (e) => {
+    if (e.isTrusted && e.target.id === "discovery-ratio") {
+      clearTimeout(mixSaveTimer);
+      saveMix();
+    }
+  });
   const profileCard = R("#profile-card");
   let previewAnchor = null,
     previewHandle = "",
@@ -464,11 +527,14 @@
       return;
     }
     if (view === "settings") {
+      status("Changes save automatically for @" + account + ".");
       R("#feed").innerHTML =
-        `<div class="empty"><h2>Your feed, your rules.</h2>${settingsMarkup()}<p>Discovery preserves the order X presented in For You. Activity order uses confirmed event timestamps when all collected items have them; otherwise it preserves X’s observed Following order. Unknown repost dates are never invented.</p><p>Post data stays in browser session storage and is cleared when the tab closes. It is never pushed to GitHub.</p><label class="setting">Feed order<select id="order"><option value="activity" ${prefs.order === "activity" ? "selected" : ""}>Activity time / X Following order</option><option value="post-time" ${prefs.order === "post-time" ? "selected" : ""}>Original post time</option></select></label><h3>Muted accounts</h3><p>MyX mutes and imported X mutes hide posts by that author and reposts by that actor.</p><form id="mute-form"><input id="mute-handle" placeholder="@username" aria-label="Account to mute" maxlength="16"><button class="secondary" type="submit">Mute in MyX</button></form><div class="muted-list">${[...new Set([...(data.muted || []), ...(data.xMuted || [])])].map((h) => `<div class="setting"><span>@${esc(h)} ${(data.xMuted || []).includes(h) ? "(X mute)" : ""}</span>${(data.muted || []).includes(h) ? `<button class="secondary" data-unmute="${esc(h)}">Unmute in MyX</button>` : ""}</div>`).join("") || "No mutes imported yet."}</div><button class="secondary" id="import-mutes">Import X mutes</button><p class="tiny">X mutes are a snapshot. Import again after changing them on X. MyX never automatically unmutes an account on X.</p><button class="secondary" id="clear">Clear collected posts</button></div>`;
+        `<div class="empty"><h2>Your feed, your rules.</h2>${mixMarkup()}${settingsMarkup()}<p>Discovery preserves the order X presented in For You. Activity order uses confirmed event timestamps when all collected items have them; otherwise it preserves X’s observed Following order. Unknown repost dates are never invented.</p><p>Post data stays in browser session storage and is cleared when the tab closes. It is never pushed to GitHub.</p><label class="setting">Feed order<select id="order"><option value="activity" ${prefs.order === "activity" ? "selected" : ""}>Activity time / X Following order</option><option value="post-time" ${prefs.order === "post-time" ? "selected" : ""}>Original post time</option></select></label><h3>Muted accounts</h3><p>MyX mutes and imported X mutes hide posts by that author and reposts by that actor.</p><form id="mute-form"><input id="mute-handle" placeholder="@username" aria-label="Account to mute" maxlength="16"><button class="secondary" type="submit">Mute in MyX</button></form><div class="muted-list">${[...new Set([...(data.muted || []), ...(data.xMuted || [])])].map((h) => `<div class="setting"><span>@${esc(h)} ${(data.xMuted || []).includes(h) ? "(X mute)" : ""}</span>${(data.muted || []).includes(h) ? `<button class="secondary" data-unmute="${esc(h)}">Unmute in MyX</button>` : ""}</div>`).join("") || "No mutes imported yet."}</div><button class="secondary" id="import-mutes">Import X mutes</button><p class="tiny">X mutes are a snapshot. Import again after changing them on X. MyX never automatically unmutes an account on X.</p><button class="secondary" id="clear">Clear collected posts</button></div>`;
+      updateMixControls();
       return;
     }
     if (view === "sources") {
+      status("Collect posts from your signed-in X account.");
       const unknown = data.forYou.filter(
         (p) =>
           !data.following.some((f) => f.id === p.id) &&
@@ -481,14 +547,24 @@
     let ps = M.feed(data, prefs);
     R("#feed").innerHTML = ps.length
       ? ps.map(postMarkup).join("")
-      : `<div class="empty"><h2>${prefs.search ? "No matching posts." : "Your people, in time order."}</h2><p>${prefs.search ? "Try a different search." : "Start by collecting your Following feed. Then collect For You and verify discovery authors to build your 10-to-1 mix."}</p><button class="primary blue" data-view="sources">Set up your feed</button></div>`;
+      : `<div class="empty"><h2>${prefs.search ? "No matching posts." : "Your people, in time order."}</h2><p>${prefs.search ? "Try a different search." : "Start by collecting your Following feed. Then collect For You and verify discovery authors to build your custom feed mix."}</p><button class="primary blue" data-view="sources">Set up your feed</button></div>`;
     if (restoreReaderScroll) {
       R(".app").scrollTop = prefs.readerScroll || 0;
       restoreReaderScroll = false;
     }
+    const followingCount = ps.filter((p) => !p.discovery).length;
+    const discoveryCount = ps.length - followingCount;
+    const target = M.discoveryPercent(prefs);
+    const mixed = prefs.discovery !== false && prefs.tab === "all";
+    const shortfall =
+      mixed &&
+      target > 0 &&
+      target < 100 &&
+      discoveryCount <
+        Math.floor((followingCount * target) / (100 - target) + 1e-9);
     status(
       ps.length
-        ? `${ps.filter((p) => !p.discovery).length} following activities · ${ps.filter((p) => p.discovery).length} discovery posts · ${data.updated ? "collected " + new Date(data.updated).toLocaleTimeString() : ""}`
+        ? `${followingCount} following activities · ${discoveryCount} discovery posts${mixed ? " · target " + percentLabel(target) + " discovery" : ""}${shortfall ? " · Collect and verify more For You posts to reach your target." : ""} · ${data.updated ? "collected " + new Date(data.updated).toLocaleTimeString() : ""}`
         : "Ready when you are.",
     );
   }
@@ -783,11 +859,23 @@
     let current = readAccount();
     if (current === account) return;
     account = current;
+    clearTimeout(mixSaveTimer);
+    delete prefs.discoveryPercent;
+    prefs.discovery = true;
     hidePreview();
     data = M.empty(current);
     pending = null;
     surface = "feed";
     await msg({ type: "CLEAR" });
+    const storedMix = await msg({ type: "MIX_GET", account: current });
+    if (account !== current) return;
+    if (
+      typeof storedMix?.percent === "number" &&
+      Number.isFinite(storedMix.percent)
+    ) {
+      prefs.discoveryPercent = storedMix.percent;
+      prefs.discovery = storedMix.enabled !== false;
+    }
     render();
   }
   async function verify() {
@@ -982,6 +1070,16 @@
       hide();
       location.assign("/i/flow/login");
     }
+    if (b.id === "reset-mix") {
+      prefs.discoveryPercent = 100 / 11;
+      prefs.discovery = true;
+      R("#discovery-ratio").value = prefs.discoveryPercent;
+      root
+        .querySelectorAll('[data-pref="discovery"]')
+        .forEach((e) => (e.checked = true));
+      updateMixControls();
+      saveMix();
+    }
     if (b.id === "verify") verify();
     if (b.id === "clear") {
       const muted = data.muted || [],
@@ -1024,6 +1122,7 @@
     }
     if (e.target.dataset.pref) {
       prefs[e.target.dataset.pref] = e.target.checked;
+      if (e.target.dataset.pref === "discovery") saveMix();
       save();
       render();
     }
@@ -1278,6 +1377,14 @@
   }
   modelReady = true;
   timelineQueue.splice(0).forEach(acceptTimeline);
+  const storedMix = await msg({ type: "MIX_GET", account });
+  if (
+    typeof storedMix?.percent === "number" &&
+    Number.isFinite(storedMix.percent)
+  ) {
+    prefs.discoveryPercent = storedMix.percent;
+    prefs.discovery = storedMix.enabled !== false;
+  }
   const storedMutes = await msg({ type: "MUTES_GET", account });
   if (storedMutes?.muted) data.muted = storedMutes.muted;
   if (storedMutes?.xMuted) data.xMuted = storedMutes.xMuted;

@@ -85,3 +85,56 @@ test("mute preferences persist separately per account and validate handles", asy
     "writer",
   );
 });
+
+test("feed mix persists across tabs and session clearing, isolated by X account", async () => {
+  let onMessage;
+  const local = {},
+    session = {};
+  const storage = (records) => ({
+    get: async (k) => ({ [k]: records[k] }),
+    set: async (value) => Object.assign(records, value),
+    remove: async (k) => {
+      delete records[k];
+    },
+  });
+  const chrome = {
+    runtime: {
+      onMessage: {
+        addListener: (f) => {
+          onMessage = f;
+        },
+      },
+    },
+    tabs: { onRemoved: { addListener: () => {} } },
+    storage: { local: storage(local), session: storage(session) },
+  };
+  vm.runInNewContext(fs.readFileSync("extension/background.js", "utf8"), {
+    chrome,
+    JSON,
+    importScripts: () => {},
+  });
+  const send = (m, id = 1) =>
+    new Promise((resolve) =>
+      onMessage(m, { tab: { id }, url: "https://x.com/home" }, resolve),
+    );
+  await send({ type: "MIX_SET", account: "alice", percent: 25, enabled: true });
+  await send({ type: "CLEAR" });
+  assert.equal(
+    (await send({ type: "MIX_GET", account: "alice" }, 2)).percent,
+    25,
+  );
+  assert.equal(await send({ type: "MIX_GET", account: "bob" }), null);
+  for (const percent of [-1, 101, NaN, "50"]) {
+    assert.equal(
+      await send({ type: "MIX_SET", account: "alice", percent }),
+      null,
+    );
+  }
+  assert.equal((await send({ type: "MIX_GET", account: "alice" })).percent, 25);
+  await send({ type: "MIX_SET", account: "bob", percent: 100, enabled: false });
+  assert.equal(
+    (await send({ type: "MIX_GET", account: "bob" })).enabled,
+    false,
+  );
+  assert.equal((await send({ type: "MIX_GET", account: "alice" })).percent, 25);
+});

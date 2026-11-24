@@ -79,6 +79,22 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       typeof m.account === "string" && /^[a-z0-9_]{1,15}$/.test(m.account)
         ? m.account
         : null;
+    const mixKey = account && "myx:mix:" + account;
+    if (m.type === "MIX_GET" && mixKey)
+      return (await chrome.storage.local.get(mixKey))[mixKey] || null;
+    if (
+      m.type === "MIX_SET" &&
+      mixKey &&
+      typeof m.percent === "number" &&
+      Number.isFinite(m.percent) &&
+      m.percent >= 0 &&
+      m.percent <= 100
+    ) {
+      await chrome.storage.local.set({
+        [mixKey]: { percent: m.percent, enabled: m.enabled !== false },
+      });
+      return { ok: true };
+    }
     const prefKey = account && "myx:mutes:" + account;
     if (m.type === "MUTES_GET" && prefKey)
       return (

@@ -150,6 +150,12 @@
     );
     return muted.has(handle(p.handle)) || muted.has(handle(p.actor));
   }
+  function discoveryPercent(prefs = {}) {
+    const p = prefs.discoveryPercent;
+    return typeof p === "number" && Number.isFinite(p)
+      ? Math.max(0, Math.min(100, p))
+      : 100 / 11;
+  }
   function feed(data, prefs = {}) {
     const following = new Set((data.following || []).map((p) => p.id));
     const known = new Set(
@@ -185,11 +191,8 @@
     if (prefs.order !== "activity") {
       ps = [...ps].sort((a, b) => b.time - a.time || b.id.localeCompare(a.id));
     }
-    if (
-      prefs.discovery === false ||
-      (prefs.tab && prefs.tab !== "all") ||
-      prefs.search
-    )
+    const share = prefs.discovery === false ? 0 : discoveryPercent(prefs) / 100;
+    if (share === 0 || (prefs.tab && prefs.tab !== "all") || prefs.search)
       return ps.map((p) => ({ ...p, discovery: false }));
     let used = new Set();
     let candidates = (data.forYou || []).filter(
@@ -201,17 +204,20 @@
         p.kind !== "repost" &&
         !p.promoted,
     );
+    candidates = candidates.filter((p) => {
+      if (used.has(p.id)) return false;
+      used.add(p.id);
+      return true;
+    });
+    if (share === 1) return candidates.map((p) => ({ ...p, discovery: true }));
     let i = 0,
       out = [];
     for (let n = 0; n < ps.length; n++) {
       out.push({ ...ps[n], discovery: false });
-      if ((n + 1) % 10 === 0) {
-        while (i < candidates.length && used.has(candidates[i].id)) i++;
-        if (i < candidates.length) {
-          let p = candidates[i++];
-          used.add(p.id);
-          out.push({ ...p, discovery: true });
-        }
+      const due = Math.floor(((n + 1) * share) / (1 - share) + 1e-9);
+      while (i < candidates.length && i < due) {
+        let p = candidates[i++];
+        out.push({ ...p, discovery: true });
       }
     }
     return out;
@@ -229,6 +235,7 @@
     };
   }
   root.MyXModel = {
+    discoveryPercent,
     surfaceForPath,
     mentionParts,
     searchAccounts,
