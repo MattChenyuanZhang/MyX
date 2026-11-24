@@ -35,7 +35,7 @@ MyX imports the native X muted-account list before collection (refreshed when mo
 
 Discovery is taken only from the actual For You tab. Unknown relationship status is excluded until verified. Authors of captured following posts or reposts and posts already present in Following are excluded. Verification is a snapshot: following someone later in another tab may make the relationship stale; recollect/clear to refresh. X can change its UI, language, policies, or session behavior. English X UI is currently required.
 
-Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.3.md` for the current verified and unverified boundaries (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
+Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.4.md` for the latest UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
 
 ## Privacy
 
