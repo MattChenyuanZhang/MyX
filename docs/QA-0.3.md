@@ -50,7 +50,10 @@ The build changes four areas: activity records, mute filtering, native controls 
 - Matched accounts from collected authors, reposters, mentions, and reply recipients appear only in response to a typed query. These are search matches, not follow recommendations.
 - Author names, handles, avatars, reposter names, reply recipients, and @mentions link to native X profiles inside MyX. Native profile information and follow controls remain X's own UI.
 - Local browser checks opened matched reposter and reply-recipient profiles and a native-style People search result page while retaining the MyX shell. A DOM text-joining bug initially produced the wrong reply-recipient handle; parsing visible text fixed it, and the browser then opened the exact expected profile. Unit checks cover matching, duplicates, query encoding, mention boundaries, and preservation of unsafe markup as plain text.
-- Final installed-X verification of the new 0.3.2 search UI requires reloading the unpacked extension. The 0.3.1 live passes above do not by themselves verify the new search UI.
+- Final installed 0.3.2 live checks passed after refreshing X: the sidebar exposed **Search X accounts**, submitted a real People search with People selected, and opened an actual result's profile with biography, account dates, follower counts, and native controls inside MyX.
+- Collected a fresh Following window (50/50 confirmed activity times). A reply-recipient link and a reposter link each opened the exact expected real profile while the MyX reader remained visible. Searching a reposter's display name returned their actual username; searching a current feed author's handle and selecting the match opened the correct native profile.
+- Saved a visual proof of the real profile inside MyX outside this repository. No relationship changes or posts were submitted during the search checks.
+- An extension reload cleared the session post cache; fresh collection restored searchable feed matches. Real X People search also worked while the collected cache was empty.
 
 ## Scope and limits
 
