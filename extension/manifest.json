@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "MyX \u2014 Your following, your pace",
+  "version": "0.1.0",
+  "description": "A chronological reader for posts loaded from your X Following feed, with one verified For You discovery after every ten posts. Uses X's native controls.",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Open MyX"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*"
+      ],
+      "js": [
+        "engine.js",
+        "content.js"
+      ],
+      "css": [
+        "launcher.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "minimum_chrome_version": "112"
+}

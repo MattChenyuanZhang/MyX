@@ -1,0 +1,10 @@
+/* Shared pure model. No X requests and no credentials. */
+(function(root){
+  const handle=s=>String(s||'').replace(/^@/,'').toLowerCase();
+  const validHandle=s=>/^[a-zA-Z0-9_]{1,15}$/.test(s||'');
+  function statusLink(raw){try{let u=new URL(raw,'https://x.com');let m=u.pathname.match(/^\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?$/);return u.origin==='https://x.com'&&m?{handle:handle(m[1]),id:m[2],url:'https://x.com/'+m[1]+'/status/'+m[2]}:null}catch{return null}}
+  function merge(old,incoming){let m=new Map(old.map(p=>[p.id,p]));for(let p of incoming){if(!/^\d+$/.test(p.id)||!validHandle(p.handle)||!Number.isFinite(p.time))continue;let prior=m.get(p.id);m.set(p.id,{...prior,...p,seenAt:prior?.seenAt||p.seenAt});}return [...m.values()].slice(-600)}
+  function feed(data,prefs={}){const following=new Set((data.following||[]).map(p=>p.id));const known=new Set((data.following||[]).flatMap(p=>[handle(p.handle),handle(p.actor)]).filter(Boolean));let ps=(data.following||[]).filter(p=>(prefs.replies!==false||p.kind!=='reply')&&(prefs.reposts!==false||p.kind!=='repost'));if(prefs.tab&&prefs.tab!=='all')ps=ps.filter(p=>p.kind===prefs.tab);if(prefs.search)ps=ps.filter(p=>(p.text+' '+p.name+' '+p.handle).toLowerCase().includes(prefs.search.toLowerCase()));ps=[...ps].sort((a,b)=>b.time-a.time||b.id.localeCompare(a.id));if(prefs.discovery===false||prefs.tab&&prefs.tab!=='all'||prefs.search)return ps.map(p=>({...p,discovery:false}));let used=new Set();let candidates=(data.forYou||[]).filter(p=>!following.has(p.id)&&!known.has(handle(p.handle))&&data.relationships?.[handle(p.handle)]==='not-following'&&p.kind!=='repost'&&!p.promoted);let i=0,out=[];for(let n=0;n<ps.length;n++){out.push({...ps[n],discovery:false});if((n+1)%10===0){while(i<candidates.length&&used.has(candidates[i].id))i++;if(i<candidates.length){let p=candidates[i++];used.add(p.id);out.push({...p,discovery:true});}}}return out}
+  function empty(account){return {account:handle(account),following:[],forYou:[],relationships:{},updated:null}}
+  root.MyXModel={handle,validHandle,statusLink,merge,feed,empty};
+})(globalThis);
