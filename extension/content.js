@@ -589,6 +589,26 @@
           ? "X updated the post."
           : "X has not confirmed the change. Check the native post before retrying.",
       );
+    } else if (action === "repost") {
+      const owner = account;
+      for (let n = 0; n < 600; n++) {
+        await wait(200);
+        if (readAccount() !== owner) return;
+        const current = nativeArticle(before.id);
+        const after = current && parse(current);
+        if (after && after.reposted !== before.reposted) {
+          for (const key of ["following", "forYou"])
+            data[key] = M.updatePostState(data[key], after.id, after);
+          await save();
+          render();
+          toast("X updated the repost.");
+          return;
+        }
+        const menuOpen = all('#layers [role="menu"]').some(
+          (e) => e.getClientRects().length > 0,
+        );
+        if (n > 5 && !menuOpen) return;
+      }
     } else if (action === "quote") {
       for (let n = 0; n < 15; n++) {
         await wait(100);
