@@ -2,16 +2,21 @@
 
 A Chrome Manifest V3 extension that reads your signed-in X timeline, keeps native interactions and History inside the MyX shell, and offers account mute filtering. No X developer account, API key, OpenAI login, or paid backend is required.
 
-## Install in Chrome
+## Download and install
 
-1. Download and extract `myx-extension.zip` from the release or repository.
-2. Open `chrome://extensions`, enable **Developer mode**, and click **Load unpacked**.
-3. Select the folder containing `manifest.json` (the repository's `extension/` folder).
-4. Sign in directly at https://x.com and refresh that tab. Click the **MyX** button in the lower right.
-5. Open **Feed sources**, collect **Following**, collect **For You**, then **Verify up to 5 discovery authors**. Verification visits candidate profiles without following anyone. Repeat to verify more candidates.
-6. Open **Home**. Eligible discoveries appear after every ten visible following posts. Collection is incremental; rerun it to gather more rendered posts.
+### [Download MyX for Chrome (.zip)](https://github.com/MattChenyuanZhang/myx/releases/latest/download/myx-extension.zip)
 
-Every user installs the extension and signs into their own X browser session. This is not a hosted multi-user proxy, and the earlier MyX demo website is not the extension.
+No GitHub account, OpenAI login, API key, or command line is required.
+
+1. **Unzip** the download and keep the folder somewhere permanent.
+2. In Chrome, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the extracted folder containing `manifest.json`.
+3. Sign in at [x.com](https://x.com/home#myx), refresh the tab, then click **MyX** in the lower right or Chrome’s Extensions menu.
+
+The download includes **START-HERE.html** with a browser-readable guide. [Full installation and update instructions →](docs/INSTALL.md)
+
+This is an unpacked extension, not a Chrome Web Store listing. Normal “Add to Chrome” installation needs a Store release. Every person installs their own copy and uses their own X session; the earlier demo website is not the extension.
+
+In **Feed sources**, collect **Following** and **For You**. Verify unknown discovery authors when requested. Eligible For You posts appear after each ten visible following activities; collect again to load more.
 
 ## Interaction behavior
 
