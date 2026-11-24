@@ -12,6 +12,27 @@
     typeof s === "string" && /^https:\/\/(?:pbs|abs)\.twimg\.com\//.test(s)
       ? s
       : "";
+  function profileOf(u) {
+    const h = handleOf(u);
+    if (!h) return null;
+    const following =
+      u?.relationship_perspectives?.following ?? u?.legacy?.following;
+    return {
+      handle: h,
+      name: String(u?.core?.name || u?.legacy?.name || h).slice(0, 200),
+      avatar: https(u?.avatar?.image_url || u?.legacy?.profile_image_url_https),
+      bio: String(u?.legacy?.description || "").slice(0, 2000),
+      followersCount: Number.isFinite(u?.legacy?.followers_count)
+        ? String(u.legacy.followers_count)
+        : "",
+      followingCount: Number.isFinite(u?.legacy?.friends_count)
+        ? String(u.legacy.friends_count)
+        : "",
+      following: typeof following === "boolean" ? following : null,
+      verified: u?.is_blue_verified === true || u?.legacy?.verified === true,
+      capturedAt: Date.now(),
+    };
+  }
   function parseItem(raw) {
     let t = unwrap(raw);
     if (!t?.legacy || !/^\d+$/.test(t.rest_id || "")) return null;
@@ -51,6 +72,10 @@
         ? "reply"
         : "post";
     return {
+      profiles: [
+        profileOf(u),
+        ...(kind === "repost" ? [profileOf(actorUser)] : []),
+      ].filter(Boolean),
       id: originalID,
       eventId: t.rest_id,
       eventTime,

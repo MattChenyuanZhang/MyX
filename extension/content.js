@@ -4,6 +4,10 @@
     await new Promise((r) =>
       document.addEventListener("DOMContentLoaded", r, { once: true }),
     );
+  if (location.hash === "#myx-profile-lookup") {
+    await globalThis.MyXProfile.lookup();
+    return;
+  }
   if (document.getElementById("myx-root")?.dataset.initialized) return;
   const M = globalThis.MyXModel,
     $ = (s, r = document) => r.querySelector(s),
@@ -209,6 +213,147 @@
       )
       .join("");
   }
+  const profileCard = R("#profile-card");
+  let previewAnchor = null,
+    previewHandle = "",
+    previewTimer,
+    previewHideTimer;
+  const profileRequests = new Map();
+  function profileHandle(link) {
+    if (!link) return null;
+    try {
+      const u = new URL(link.href, location.href);
+      const h = u.pathname
+        .match(/^\/([A-Za-z0-9_]{1,15})\/?$/)?.[1]
+        ?.toLowerCase();
+      return u.origin === "https://x.com" &&
+        M.validHandle(h) &&
+        !["home", "search", "settings", "explore", "compose", "i"].includes(h)
+        ? h
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  function hidePreview() {
+    clearTimeout(previewTimer);
+    clearTimeout(previewHideTimer);
+    profileCard.hidden = true;
+    previewAnchor = null;
+    previewHandle = "";
+  }
+  function positionPreview() {
+    if (!previewAnchor?.isConnected) return hidePreview();
+    const a = previewAnchor.getBoundingClientRect(),
+      c = profileCard.getBoundingClientRect();
+    profileCard.style.left =
+      Math.max(8, Math.min(a.left, innerWidth - c.width - 8)) + "px";
+    const below = a.bottom + 8;
+    profileCard.style.top =
+      Math.max(
+        8,
+        below + c.height <= innerHeight - 8 ? below : a.top - c.height - 8,
+      ) + "px";
+  }
+  function drawPreview(p, loading = false, error = "") {
+    const url = "https://x.com/" + p.handle;
+    profileCard.innerHTML = `<div class="preview-top"><a class="avatar" href="${url}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc((p.name || p.handle)[0])}</a><a class="secondary" href="${url}">View profile</a></div><a class="preview-name" href="${url}">${esc(p.name || p.handle)}${p.verified ? ' <span aria-label="Verified account">✓</span>' : ""}</a><div class="preview-handle">@${esc(p.handle)}</div>${p.bio ? `<div class="preview-bio">${linkedText(p.bio)}</div>` : ""}<div class="preview-counts">${p.followingCount ? `<a href="${url}/following"><b>${esc(p.followingCount)}</b> <span>Following</span></a>` : ""}${p.followersCount ? `<a href="${url}/verified_followers"><b>${esc(p.followersCount)}</b> <span>Followers</span></a>` : ""}</div>${loading || error || p.following ? `<div class="preview-status">${esc(loading ? "Loading profile…" : error || "Following")}</div>` : ""}`;
+    profileCard.hidden = false;
+    positionPreview();
+  }
+  async function loadPreview(link, h) {
+    previewAnchor = link;
+    previewHandle = h;
+    const existing =
+      globalThis.MyXProfile.read(document, h) || data.profiles?.[h];
+    const author = [...data.following, ...data.forYou].find(
+      (p) => p.handle === h,
+    );
+    const actor = [...data.following, ...data.forYou].find(
+      (p) => p.actor === h,
+    );
+    const base = existing || {
+      handle: h,
+      name: author?.name || actor?.context?.replace(/\s+reposted.*$/i, "") || h,
+      avatar: author?.avatar || "",
+    };
+    if (
+      existing &&
+      (existing.followersCount || existing.followingCount) &&
+      Date.now() - existing.capturedAt < 300000
+    ) {
+      drawPreview(existing);
+      return;
+    }
+    drawPreview(base, true);
+    const owner = account,
+      requestKey = owner + ":" + h;
+    if (!profileRequests.has(requestKey))
+      profileRequests.set(
+        requestKey,
+        msg({ type: "PROFILE_GET", account: owner, handle: h }),
+      );
+    const response = await profileRequests.get(requestKey);
+    profileRequests.delete(requestKey);
+    if (account !== owner || readAccount() !== owner) return;
+    const profile = globalThis.MyXProfile.clean(response?.profile);
+    if (profile?.handle === h) {
+      data.profiles ||= {};
+      delete data.profiles[h];
+      data.profiles[h] = profile;
+      const keys = Object.keys(data.profiles);
+      keys
+        .slice(0, Math.max(0, keys.length - 100))
+        .forEach((k) => delete data.profiles[k]);
+      await save();
+    }
+    if (previewHandle === h)
+      drawPreview(
+        profile || base,
+        false,
+        profile
+          ? ""
+          : "Profile details unavailable. Open the profile to view more.",
+      );
+  }
+  function schedulePreview(e) {
+    if (!e.isTrusted || profileCard.contains(e.target)) return;
+    const a = e.target.closest("a[href]"),
+      h = profileHandle(a);
+    if (!h || collecting || !account) return;
+    clearTimeout(previewHideTimer);
+    if (previewAnchor === a && previewHandle === h && !profileCard.hidden)
+      return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => loadPreview(a, h), 350);
+  }
+  root.addEventListener("pointerover", schedulePreview);
+  root.addEventListener("focusin", schedulePreview);
+  function leavePreview(e) {
+    const a = e.target.closest("a[href]");
+    if (
+      !profileHandle(a) ||
+      a.contains(e.relatedTarget) ||
+      profileCard.contains(e.relatedTarget)
+    )
+      return;
+    clearTimeout(previewTimer);
+    previewHideTimer = setTimeout(hidePreview, 250);
+  }
+  root.addEventListener("pointerout", leavePreview);
+  root.addEventListener("focusout", leavePreview);
+  profileCard.addEventListener("pointerenter", () =>
+    clearTimeout(previewHideTimer),
+  );
+  profileCard.addEventListener("pointerleave", (e) => {
+    if (!previewAnchor?.contains(e.relatedTarget))
+      previewHideTimer = setTimeout(hidePreview, 250);
+  });
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hidePreview();
+  });
+  R(".app").addEventListener("scroll", hidePreview, { passive: true });
+  window.addEventListener("resize", hidePreview);
   const icons = {
     reply: "M21 11a9 9 0 0 1-9 9H4l2-4a9 9 0 1 1 15-5",
     repost: "M4 8h14l-4-4M20 16H6l4 4M18 8v5M6 16v-5",
@@ -269,6 +414,7 @@
     R("#native").textContent =
       surface === "feed" ? "Back to X" : "Back to feed";
     host.classList.toggle("native-surface", surface !== "feed");
+    host.dataset.surface = surface;
     R("#coverage").innerHTML =
       `<b>${data.following.length} collected activities</b> · ${data.forYou.length} For You · ${new Set(data.forYou.filter((p) => data.relationships[p.handle] === "not-following").map((p) => p.handle)).size} verified discovery authors · ${data.following.filter((p) => Number.isFinite(p.eventTime)).length}/${data.following.length} activity times confirmed`;
     R(".heading h1").textContent =
@@ -279,6 +425,8 @@
             thread: "Conversation",
             profile: "Profile",
             search: "Account search",
+            messages: "Messages",
+            lists: "Lists",
             mutes: "Muted accounts",
           }[surface] || "X"
         : {
@@ -361,6 +509,9 @@
     document.documentElement.classList.remove("myx-native", "myx-open");
     visible = false;
     document.body.inert = false;
+    all("[data-myx-message-main]").forEach((e) =>
+      e.removeAttribute("data-myx-message-main"),
+    );
     host.style.display = "none";
     launcher.style.display = "";
     if (location.hash === "#myx")
@@ -627,6 +778,7 @@
     let current = readAccount();
     if (current === account) return;
     account = current;
+    hidePreview();
     data = M.empty(current);
     pending = null;
     surface = "feed";
@@ -848,7 +1000,12 @@
         location.assign("/i/flow/login");
       } else
         await openSurface(
-          { history: "/i/history", bookmarks: "/i/bookmarks" }[kind],
+          {
+            history: "/i/history",
+            bookmarks: "/i/bookmarks",
+            lists: "/i/lists",
+            messages: "/i/chat",
+          }[kind],
           kind,
         );
     }
@@ -897,7 +1054,13 @@
   });
   function alignNative() {
     if (surface === "feed") return;
-    const col = $('[data-testid="primaryColumn"]');
+    const primary = $('[data-testid="primaryColumn"]');
+    const col = primary || (surface === "messages" ? $("main") : null);
+    for (const main of all("main"))
+      main.toggleAttribute(
+        "data-myx-message-main",
+        surface === "messages" && !primary && main === col,
+      );
     if (!col) return;
     const rect = col.getBoundingClientRect();
     host.style.setProperty("--myx-native-left", Math.max(0, rect.left) + "px");
@@ -946,6 +1109,7 @@
       return;
     const a = e.target.closest("a[href]");
     if (!a) return;
+    hidePreview();
     const u = new URL(a.href);
     if (u.origin !== "https://x.com") return;
     e.preventDefault();
@@ -1006,6 +1170,18 @@
           p.kind === "repost" && M.validHandle(p.actor)
             ? M.handle(p.actor)
             : null;
+      if (Array.isArray(p.profiles)) {
+        data.profiles ||= {};
+        for (const raw of p.profiles.slice(0, 2)) {
+          const profile = globalThis.MyXProfile.clean(raw);
+          if (profile && [h, actor].includes(profile.handle))
+            data.profiles[profile.handle] = profile;
+        }
+        const keys = Object.keys(data.profiles);
+        keys
+          .slice(0, Math.max(0, keys.length - 100))
+          .forEach((k) => delete data.profiles[k]);
+      }
       const value = {
         id: p.id,
         eventId: p.eventId,

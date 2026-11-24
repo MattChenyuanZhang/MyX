@@ -95,3 +95,18 @@ test("known non-followed context rows do not become followed activity", () => {
     0,
   );
 });
+
+test("timeline profiles expose public bio and follower counts without copying account secrets", () => {
+  const t = tweet("9");
+  const u = t.core.user_results.result;
+  u.legacy ||= {};
+  u.legacy.description = "An actual biography";
+  u.legacy.followers_count = 4217;
+  u.legacy.friends_count = 126;
+  u.auth_token = "never";
+  const p = T.extract(response(t))[0].profiles[0];
+  assert.equal(p.bio, "An actual biography");
+  assert.equal(p.followersCount, "4217");
+  assert.equal(p.followingCount, "126");
+  assert.equal(p.auth_token, undefined);
+});

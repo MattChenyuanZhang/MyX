@@ -9,3 +9,5 @@ html.myx-open article[data-myx-muted]{display:none!important}
 html.myx-open [data-myx-layer-parent]{z-index:auto!important}
 
 html.myx-open [data-testid="GrokDrawer"],html.myx-open [data-testid="chat-drawer-root"]{display:none!important}
+
+html.myx-native main[data-myx-message-main]{padding-top:54px!important;box-sizing:border-box!important}

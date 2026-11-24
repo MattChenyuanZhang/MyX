@@ -21,6 +21,7 @@ test("session cache is isolated by tab, rejects off-site messages, and clears on
   vm.runInNewContext(fs.readFileSync("extension/background.js", "utf8"), {
     chrome,
     JSON,
+    importScripts: () => {},
   });
   const send = (m, id = 1, url = "https://x.com/home") =>
     new Promise((resolve) => {
@@ -54,6 +55,7 @@ test("mute preferences persist separately per account and validate handles", asy
   vm.runInNewContext(fs.readFileSync("extension/background.js", "utf8"), {
     chrome,
     JSON,
+    importScripts: () => {},
   });
   const send = (m) =>
     new Promise((resolve) =>

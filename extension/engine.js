@@ -53,6 +53,8 @@
       : null;
   }
   function surfaceForPath(path) {
+    if (/^\/(?:i\/chat|messages)(?:\/|$)/.test(path)) return "messages";
+    if (/^\/(?:i|[A-Za-z0-9_]{1,15})\/lists(?:\/|$)/.test(path)) return "lists";
     if (/^\/i\/history(?:\/|$)/.test(path)) return "history";
     if (/^\/i\/bookmarks(?:\/|$)/.test(path)) return "bookmarks";
     if (/^\/search(?:\/|$)/.test(path)) return "search";
@@ -220,6 +222,7 @@
       following: [],
       forYou: [],
       relationships: {},
+      profiles: {},
       muted: [],
       xMuted: [],
       updated: null,

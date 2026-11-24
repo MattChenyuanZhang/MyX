@@ -25,6 +25,8 @@ In **Feed sources**, collect **Following** and **For You**. Verify unknown disco
 - Repost opens X's native repost/undo menu; quote opens the quote composer.
 - Share copies the canonical post URL. Conversation opens the real thread in the center of the MyX shell. History and Bookmarks use the same native center pane, preserving X's own tabs and pagination.
 - New posts and media uploads use X's native composer above MyX. Author names, avatars, handles, reposter names, reply recipients, and @mentions open the native profile in the MyX center pane with real account details and follow/unfollow controls.
+- Hover a name, avatar, reposter, reply recipient, or account search match to preview the real profile. Cards show available bio and follower/following counts and link to the full native profile. Keyboard focus also opens previews; Escape closes them.
+- **Lists** and **Messages** in the sidebar open X's native interfaces inside MyX. Messages uses X's own messaging/security flow and a wider, compact-sidebar layout; MyX does not copy DM contents into its collected feed.
 - The sidebar searches real X accounts. Type a name or handle to see matching accounts already encountered; press Enter or choose **Search accounts on X** for X's People results, including accounts outside the collected feed. No follow-recommendation panel is added.
 - If the post is no longer in the rendered timeline, MyX navigates to the canonical post, checks the current account and exact post ID, then activates only the requested control. It never acts on a guessed post.
 
@@ -40,13 +42,15 @@ MyX imports the native X muted-account list before collection (refreshed when mo
 
 Discovery is taken only from the actual For You tab. Unknown relationship status is excluded until verified. Authors of captured following posts or reposts and posts already present in Following are excluded. Verification is a snapshot: following someone later in another tab may make the relationship stale; recollect/clear to refresh. X can change its UI, language, policies, or session behavior. English X UI is currently required.
 
-Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.4.md` for the latest UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
+Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.5.md` for preview, navigation and download checks and `docs/QA-0.4.md` for startup/UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
 
 ## Privacy
 
-Only `storage` permission and a content script on `https://x.com/*` are declared. No cookie access, extra/private API requests, password collection, access-token collection, telemetry, or external servers. The page-world observer wraps fetch/XHR only to parse copies of existing X timeline responses; it does not read request headers or bodies and returns X's original requests/responses unchanged. Collected data is in Chrome session storage, isolated by tab and observed X account. Closing a tab removes its stored data. Account changes clear its collection. Mute preferences persist in Chrome local storage under separate account keys; feed preferences remain session-local. Reading X's DOM is necessary for this functionality; protected posts may be present locally, so post content and screenshots must never be committed to Git.
+Only `storage` permission and a content script on `https://x.com/*` are declared. No cookie access, direct private-API calls, password collection, access-token collection, telemetry, or external servers. The page-world observer wraps fetch/XHR only to parse copies of existing X timeline responses; it does not read request headers or bodies and returns X's original requests/responses unchanged. Collected data is in Chrome session storage, isolated by tab and observed X account. Closing a tab removes its stored data. Account changes clear its collection. Mute preferences persist in Chrome local storage under separate account keys; feed preferences remain session-local. Reading X's DOM is necessary for this functionality; protected posts may be present locally, so post content and screenshots must never be committed to Git.
 
-The popup creates a new X tab. Browser/account switching and X drafts remain under your control. As you use X, the passive observer may populate the local cache from timeline responses X already requested. Collection, profile verification, and post actions run only when you request them.
+Profile previews use public profile fields from already-received timelines when available. For a missing profile, a preview can open a temporary inactive X tab, read its native profile, and close the tab; a tab explicitly opened by the user is left open. Profile caches remain account/tab-local and are limited to 100 entries. No messaging content is captured by this lookup.
+
+The popup creates a new X tab. Browser/account switching and X drafts remain under your control. As you use X, the passive observer may populate the local cache from timeline responses X already requested. Collection, profile verification, and post actions run only when you request them. Profile details may load after you hover or focus a profile link.
 
 ## Development
 

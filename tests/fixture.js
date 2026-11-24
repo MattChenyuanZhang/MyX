@@ -20,6 +20,19 @@ if (releaseLoading) {
 window.chrome = {
   runtime: {
     sendMessage: async (m) => {
+      if (m.type === "PROFILE_GET")
+        return {
+          profile: {
+            handle: m.handle,
+            name: "Profile " + m.handle,
+            avatar: "",
+            bio: "A real-shaped test biography with @friend.",
+            followingCount: "126",
+            followersCount: "4,217",
+            following: true,
+            capturedAt: Date.now(),
+          },
+        };
       if (m.type === "MUTES_GET")
         return JSON.parse(
           sessionStorage.getItem("fixture-prefs-" + m.account) ||
@@ -95,6 +108,28 @@ function show() {
   const match = location.pathname.match(/^\/([^/]+)\/status\/(\d+)$/);
   if (match) {
     native.innerHTML = card(Number(match[2]), match[1]);
+    return;
+  }
+  if (location.pathname === "/i/lists") {
+    native.innerHTML =
+      '<h2>Lists</h2><button id="fixture-new-list">Create a new List</button><p>Your Lists</p>';
+    native.querySelector("button").onclick = () => {
+      native.innerHTML =
+        '<h2>Create a new List</h2><input aria-label="List name"><button id="fixture-create-list">Create</button>';
+      native.querySelector("button").onclick = () => {
+        notice("Test list created");
+        show();
+      };
+    };
+    return;
+  }
+  if (location.pathname.startsWith("/i/chat")) {
+    native.innerHTML =
+      '<h2>Messages</h2><p>Test conversation</p><textarea aria-label="Message text"></textarea><button id="fixture-send-message">Send</button>';
+    native.querySelector("button").onclick = () => {
+      notice("Test message sent");
+      native.querySelector("textarea").value = "";
+    };
     return;
   }
   if (location.pathname === "/search") {

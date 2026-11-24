@@ -23,7 +23,11 @@
 @media(max-width:1005px){.layout{max-width:688px;grid-template-columns:88px minmax(0,600px)}.right{display:none}:host{--myx-native-left:max(88px,calc((100vw - 688px)/2 + 88px))}}
 @media(max-width:650px){.layout{display:block}.left{display:none}.main{border:0}.post{padding:12px 16px 8px}.heading h1{font-size:20px}.actions .count{display:none}.media img{height:200px}:host(.native-surface) .layout{display:block}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
-</style><div class="app"><div class="layout"><aside class="left"><div class="logo">My<span>X</span></div><button class="nav active" data-view="home"><span class="nav-pill"><svg data-icon="home" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M3 10 12 3l9 7v11h-6v-7H9v7H3z"/></svg><span>Home</span></span></button><button class="nav" data-view="sources"><span class="nav-pill"><svg data-icon="sources" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span>Feed sources</span></span></button><button class="nav" data-view="settings"><span class="nav-pill"><svg data-icon="settings" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.6 3-2 .9L3.8 6l-2 3.5 2.3 2-.1 2.2-2 2 2 3.4 2.7-.9 2 1 .6 2.8h4l.6-2.8 2-1 2.7.9 2-3.4-2-2-.1-2.2 2.3-2L18.8 6l-2.6.9-2-.9-.6-3z"/><circle cx="11.7" cy="12" r="3.2"/></svg><span>Feed settings</span></span></button><button class="nav" data-native="history"><span class="nav-pill"><svg data-icon="history" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>History</span></span></button><button class="nav" data-native="bookmarks"><span class="nav-pill"><svg data-icon="bookmarks" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v19l-7-4-7 4z"/></svg><span>Bookmarks</span></span></button><button class="primary" data-native="post">Post</button><button class="account" id="account" data-account="true" aria-label="Your account"></button></aside><main class="main"><header class="top"><div class="heading"><h1>Home</h1><button class="secondary" id="native">Back to X</button></div><div class="tabs"><button class="active" data-tab="all">Following</button><button data-tab="reply">Replies</button><button data-tab="repost">Reposts</button></div></header><div class="coverage" id="coverage"></div><div class="mobiletools"><button class="secondary" data-view="sources">Sources</button><button class="secondary" data-view="settings">Settings</button><button class="secondary" data-native="post">Post</button></div><div class="status" id="status" role="status"></div><div id="feed"></div></main><aside class="right"><form id="account-search" role="search"><input class="search" aria-label="Search X accounts" placeholder="Search X accounts" autocomplete="off" maxlength="500"><div id="account-results" hidden></div></form><div class="rule"></div><h3>Your feed</h3><div id="settings"></div></aside></div><div class="toast" hidden role="status"></div></div>`;
+
+.profile-card{position:fixed;width:300px;max-width:calc(100vw - 16px);padding:16px;background:Canvas;color:CanvasText;border:1px solid var(--myx-line);border-radius:16px;box-shadow:0 0 15px #65778633,0 0 3px 1px #65778626;z-index:9;pointer-events:auto;font-size:15px;line-height:20px}.profile-card a{color:inherit}.profile-card .preview-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.profile-card .avatar{width:64px;height:64px}.profile-card .preview-name{font-weight:700;font-size:17px;line-height:22px}.profile-card .preview-name [aria-label="Verified account"]{color:#1d9bf0}.profile-card .preview-handle,.profile-card .preview-status{color:#536471}.profile-card .preview-bio a{color:#1d9bf0}.profile-card .preview-bio{white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0}.profile-card .preview-counts{display:flex;gap:16px;margin-top:12px;flex-wrap:wrap}.profile-card .preview-counts span{color:#536471}.profile-card .preview-status{font-size:13px;margin-top:10px}.profile-card .secondary{font-size:14px;line-height:20px;padding:5px 12px;white-space:nowrap}
+
+:host([data-surface="messages"]){--myx-native-left:max(68px,calc((100vw - 1265px)/2 + 68px));--myx-native-width:calc(100vw - var(--myx-native-left))}:host([data-surface="messages"]) .right{display:none}:host([data-surface="messages"]) .left{padding-left:max(4px,calc(var(--myx-native-left) - 60px));align-items:flex-start}:host([data-surface="messages"]) .nav{width:52px;justify-content:center}:host([data-surface="messages"]) .nav-pill{padding:12px}:host([data-surface="messages"]) .nav-pill>span,:host([data-surface="messages"]) .identity,:host([data-surface="messages"]) .account-more{display:none}:host([data-surface="messages"]) .logo{font-size:20px;padding:12px 2px}:host([data-surface="messages"]) .left .primary{width:52px;font-size:0;padding:0}:host([data-surface="messages"]) .left .primary:after{content:'+';font-size:27px}:host([data-surface="messages"]) .account{width:52px;min-height:52px;padding:6px;justify-content:center}
+</style><div class="app"><div class="layout"><aside class="left"><div class="logo">My<span>X</span></div><button class="nav active" data-view="home"><span class="nav-pill"><svg data-icon="home" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M3 10 12 3l9 7v11h-6v-7H9v7H3z"/></svg><span>Home</span></span></button><button class="nav" data-native="messages"><span class="nav-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg><span>Messages</span></span></button><button class="nav" data-native="lists"><span class="nav-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="19" rx="2"/><path d="M8 8h8M8 12h8M8 16h8M2 6h2M2 11h2M2 16h2"/></svg><span>Lists</span></span></button><button class="nav" data-view="sources"><span class="nav-pill"><svg data-icon="sources" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span>Feed sources</span></span></button><button class="nav" data-view="settings"><span class="nav-pill"><svg data-icon="settings" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.6 3-2 .9L3.8 6l-2 3.5 2.3 2-.1 2.2-2 2 2 3.4 2.7-.9 2 1 .6 2.8h4l.6-2.8 2-1 2.7.9 2-3.4-2-2-.1-2.2 2.3-2L18.8 6l-2.6.9-2-.9-.6-3z"/><circle cx="11.7" cy="12" r="3.2"/></svg><span>Feed settings</span></span></button><button class="nav" data-native="history"><span class="nav-pill"><svg data-icon="history" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>History</span></span></button><button class="nav" data-native="bookmarks"><span class="nav-pill"><svg data-icon="bookmarks" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v19l-7-4-7 4z"/></svg><span>Bookmarks</span></span></button><button class="primary" data-native="post">Post</button><button class="account" id="account" data-account="true" aria-label="Your account"></button></aside><main class="main"><header class="top"><div class="heading"><h1>Home</h1><button class="secondary" id="native">Back to X</button></div><div class="tabs"><button class="active" data-tab="all">Following</button><button data-tab="reply">Replies</button><button data-tab="repost">Reposts</button></div></header><div class="coverage" id="coverage"></div><div class="mobiletools"><button class="secondary" data-view="sources">Sources</button><button class="secondary" data-view="settings">Settings</button><button class="secondary" data-native="post">Post</button></div><div class="status" id="status" role="status"></div><div id="feed"></div></main><aside class="right"><form id="account-search" role="search"><input class="search" aria-label="Search X accounts" placeholder="Search X accounts" autocomplete="off" maxlength="500"><div id="account-results" hidden></div></form><div class="rule"></div><h3>Your feed</h3><div id="settings"></div></aside></div><div class="toast" hidden role="status"></div></div><div class="profile-card" id="profile-card" role="dialog" aria-label="Account preview" hidden></div>`;
   const surfaces = new Set([
     "feed",
     "history",
@@ -31,6 +35,8 @@
     "thread",
     "profile",
     "search",
+    "messages",
+    "lists",
   ]);
   const views = new Set(["home", "sources", "settings"]);
   function state() {
@@ -56,10 +62,16 @@
       (open ? "block" : "none");
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = template;
+    root.querySelectorAll(".nav").forEach((b) => {
+      const label = b.textContent.trim();
+      b.setAttribute("aria-label", label);
+      b.title = label;
+    });
     document.documentElement.append(host);
     if (loading) {
       const ui = state();
       host.classList.add("booting");
+      host.dataset.surface = ui.surface;
       host.classList.toggle("native-surface", ui.surface !== "feed");
       host.setAttribute("aria-busy", "true");
       document.documentElement.classList.add("myx-open");
@@ -78,6 +90,8 @@
               thread: "Conversation",
               profile: "Profile",
               search: "Account search",
+              messages: "Messages",
+              lists: "Lists",
             }[ui.surface];
       root.querySelector("#status").textContent = "Loading your account…";
       root.querySelector("#feed").innerHTML =
