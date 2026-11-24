@@ -1,10 +1,160 @@
 // Provider simulator for browser tests only. Never included in the installable extension ZIP.
-window.chrome={runtime:{sendMessage:async m=>{if(m.type==='GET')return JSON.parse(sessionStorage.getItem('fixture-myx')||'null');if(m.type==='SET')sessionStorage.setItem('fixture-myx',JSON.stringify(m.data));if(m.type==='CLEAR')sessionStorage.removeItem('fixture-myx');return {ok:true}}}};
-let account=sessionStorage.getItem('fixture-account')||'alice';document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]').textContent='Test '+account+' @'+account;
-document.querySelector('#switch').onclick=()=>{account=account==='alice'?'bob':'alice';sessionStorage.setItem('fixture-account',account);document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]').textContent='Test '+account+' @'+account;};
-const native=document.querySelector('#timeline');let src='Following';const notice=s=>document.querySelector('#notice').textContent=s;
-function card(i,who='writer'+i){const id=String(i);let type=i===3?'reply':i===4?'repost':'post';return `<article data-testid="tweet">${type==='repost'?'<a href="/friend"><span data-testid="socialContext">Friend reposted</span></a>':''}<div data-testid="User-Name"><a href="/${who}">Writer ${i}</a><a href="/${who}">@${who}</a><a href="https://x.com/${who}/status/${id}"><time datetime="2026-11-23T${String(20-Math.floor(i/60)).padStart(2,'0')}:${String(59-i%60).padStart(2,'0')}:00Z">now</time></a></div>${type==='reply'?'<div>Replying to @friend</div>':''}<div data-testid="tweetText">${i===5?'&lt;img src=x onerror=alert(1)&gt; This must stay plain text.':'Collected post '+i+' — a thought from the people you follow.'}</div><div role="group"><button data-testid="reply" aria-label="Reply">2</button><button data-testid="retweet" aria-label="Repost">3</button><button data-testid="like" aria-label="Like">4</button><button data-testid="bookmark" aria-label="Bookmark"></button></div></article>`}
-function show(){if(location.pathname==='/compose/post'){document.querySelector('#composer').showModal();return}const match=location.pathname.match(/^\/([^/]+)\/status\/(\d+)$/);if(match){native.innerHTML=card(Number(match[2]),match[1]);return}const profile=location.pathname.match(/^\/(discovery\d+|followed)$/);if(profile){let h=profile[1];native.innerHTML=`<div data-testid="UserName">${h} @${h}</div><button data-testid="123-${h==='followed'?'unfollow':'follow'}">${h==='followed'?'Following':'Follow'}</button>`;return}native.innerHTML=(src==='Following'?Array.from({length:23},(_,i)=>card(i+1)).reverse():[card(201,'discovery1'),card(202,'followed'),card(203,'discovery2'),card(204,'discovery3'),card(1)]).join('')}
-for(let b of document.querySelectorAll('[role=tab]'))b.onclick=()=>{src=b.textContent;for(let t of document.querySelectorAll('[role=tab]'))t.setAttribute('aria-selected',t===b);native.innerHTML='';setTimeout(show,100)};
-document.addEventListener('click',e=>{let b=e.target.closest('button[data-testid]');if(!b)return;let type=b.dataset.testid;let id=b.closest('article')?.querySelector('time')?.closest('a').getAttribute('href');if(type==='like'||type==='unlike'){b.dataset.testid=type==='like'?'unlike':'like';notice(b.dataset.testid+' confirmed on '+id)}if(type==='bookmark'||type==='removeBookmark'){b.dataset.testid=type==='bookmark'?'removeBookmark':'bookmark';notice(b.dataset.testid+' confirmed on '+id)}if(type==='reply'){document.querySelector('#composer').showModal();notice('Reply target '+id)}if(type==='retweet'||type==='unretweet'){let menu=document.createElement('div');menu.setAttribute('role','menu');for(let label of ['Repost','Quote']){let item=document.createElement('button');item.setAttribute('role','menuitem');item.textContent=label;item.onclick=()=>{if(label==='Repost'){b.dataset.testid=type==='retweet'?'unretweet':'retweet';notice('Repost confirmed on '+id)}else{document.querySelector('#composer').showModal();notice('Quote target '+id)}menu.remove()};menu.append(item)}b.after(menu)}});
-document.querySelector('#submit').onclick=()=>{notice('Test post submitted: '+document.querySelector('textarea').value);document.querySelector('#composer').close()};document.querySelector('#close').onclick=()=>document.querySelector('#composer').close();show();
+window.chrome = {
+  runtime: {
+    sendMessage: async (m) => {
+      if (m.type === "MUTES_GET")
+        return JSON.parse(
+          sessionStorage.getItem("fixture-prefs-" + m.account) ||
+            '{"muted":[],"xMuted":[]}',
+        );
+      if (m.type === "MUTES_SET") {
+        sessionStorage.setItem(
+          "fixture-prefs-" + m.account,
+          JSON.stringify({ muted: m.muted, xMuted: m.xMuted }),
+        );
+        return { ok: true };
+      }
+      if (m.type === "GET")
+        return JSON.parse(sessionStorage.getItem("fixture-myx") || "null");
+      if (m.type === "SET")
+        sessionStorage.setItem("fixture-myx", JSON.stringify(m.data));
+      if (m.type === "CLEAR") sessionStorage.removeItem("fixture-myx");
+      return { ok: true };
+    },
+  },
+};
+const composer = document.querySelector("#composer");
+composer.showModal = function () {
+  this.hidden = false;
+  this.open = true;
+};
+composer.close = function () {
+  this.hidden = true;
+  this.open = false;
+};
+let account = sessionStorage.getItem("fixture-account") || "alice";
+document.querySelector(
+  '[data-testid="SideNav_AccountSwitcher_Button"]',
+).textContent = "Test " + account + " @" + account;
+document.querySelector("#switch").onclick = () => {
+  account = account === "alice" ? "bob" : "alice";
+  sessionStorage.setItem("fixture-account", account);
+  document.querySelector(
+    '[data-testid="SideNav_AccountSwitcher_Button"]',
+  ).textContent = "Test " + account + " @" + account;
+};
+const native = document.querySelector("#timeline");
+let src = "Following";
+const notice = (s) => (document.querySelector("#notice").textContent = s);
+function card(i, who = "writer" + i) {
+  const id = String(i);
+  let type = i === 3 ? "reply" : i === 4 ? "repost" : "post";
+  return `<article data-testid="tweet">${type === "repost" ? '<a href="/friend"><span data-testid="socialContext">Friend reposted</span></a>' : ""}<div data-testid="User-Name"><a href="/${who}">Writer ${i}</a><a href="/${who}">@${who}</a><a href="https://x.com/${who}/status/${id}"><time datetime="2026-11-23T${String(20 - Math.floor(i / 60)).padStart(2, "0")}:${String(59 - (i % 60)).padStart(2, "0")}:00Z">now</time></a></div>${type === "reply" ? "<div>Replying to @friend</div>" : ""}<div data-testid="tweetText">${i === 5 ? "&lt;img src=x onerror=alert(1)&gt; This must stay plain text." : "Collected post " + i + " — a thought from the people you follow."}</div><div role="group"><button data-testid="reply" aria-label="Reply">2</button><button data-testid="retweet" aria-label="Repost">3</button><button data-testid="like" aria-label="Like">4</button><button data-testid="bookmark" aria-label="Bookmark"></button></div></article>`;
+}
+function show() {
+  if (location.pathname === "/settings/muted/all") {
+    native.innerHTML =
+      '<h2>Muted accounts</h2><div data-testid="UserCell"><a href="/mutedwriter">@mutedwriter</a><button aria-label="Unmute">Unmute</button></div><div data-testid="UserCell"><a href="/suggested">@suggested</a><button>Follow</button></div>';
+    return;
+  }
+  if (
+    location.pathname === "/i/history" ||
+    location.pathname === "/i/bookmarks"
+  ) {
+    native.innerHTML =
+      "<h2>History</h2><button>Bookmarks</button><button>Likes</button>" +
+      card(1);
+    return;
+  }
+  if (location.pathname === "/compose/post") {
+    document.querySelector("#composer").showModal();
+    return;
+  }
+  const match = location.pathname.match(/^\/([^/]+)\/status\/(\d+)$/);
+  if (match) {
+    native.innerHTML = card(Number(match[2]), match[1]);
+    return;
+  }
+  if (location.pathname === "/search") {
+    native.innerHTML =
+      '<h2>Search accounts</h2><a href="/friend">Friend @friend</a>';
+    return;
+  }
+  const profile =
+    location.pathname !== "/home" &&
+    location.pathname.match(/^\/([A-Za-z0-9_]{1,15})$/);
+  if (profile) {
+    let h = profile[1];
+    native.innerHTML = `<div data-testid="UserName">${h} @${h}</div><p>Test profile biography</p><button data-testid="123-${h === "followed" ? "unfollow" : "follow"}">${h === "followed" ? "Following" : "Follow"}</button>`;
+    return;
+  }
+  native.innerHTML = (
+    src === "Following"
+      ? Array.from({ length: 23 }, (_, i) => card(i + 1)).reverse()
+      : [
+          card(201, "discovery1"),
+          card(202, "followed"),
+          card(203, "discovery2"),
+          card(204, "discovery3"),
+          card(1),
+        ]
+  ).join("");
+}
+for (let b of document.querySelectorAll("[role=tab]"))
+  b.onclick = () => {
+    src = b.textContent;
+    for (let t of document.querySelectorAll("[role=tab]"))
+      t.setAttribute("aria-selected", t === b);
+    native.innerHTML = "";
+    setTimeout(show, 100);
+  };
+document.addEventListener("click", (e) => {
+  let b = e.target.closest("button[data-testid]");
+  if (!b) return;
+  let type = b.dataset.testid;
+  let id = b
+    .closest("article")
+    ?.querySelector("time")
+    ?.closest("a")
+    .getAttribute("href");
+  if (type === "like" || type === "unlike") {
+    b.dataset.testid = type === "like" ? "unlike" : "like";
+    notice(b.dataset.testid + " confirmed on " + id);
+  }
+  if (type === "bookmark" || type === "removeBookmark") {
+    b.dataset.testid = type === "bookmark" ? "removeBookmark" : "bookmark";
+    notice(b.dataset.testid + " confirmed on " + id);
+  }
+  if (type === "reply") {
+    document.querySelector("#composer").showModal();
+    notice("Reply target " + id);
+  }
+  if (type === "retweet" || type === "unretweet") {
+    let menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    for (let label of ["Repost", "Quote"]) {
+      let item = document.createElement("button");
+      item.setAttribute("role", "menuitem");
+      item.textContent = label;
+      item.onclick = () => {
+        if (label === "Repost") {
+          b.dataset.testid = type === "retweet" ? "unretweet" : "retweet";
+          notice("Repost confirmed on " + id);
+        } else {
+          document.querySelector("#composer").showModal();
+          notice("Quote target " + id);
+        }
+        menu.remove();
+      };
+      menu.append(item);
+    }
+    document.querySelector("#layers").append(menu);
+  }
+});
+document.querySelector("#submit").onclick = () => {
+  notice("Test post submitted: " + document.querySelector("textarea").value);
+  document.querySelector("#composer").close();
+};
+document.querySelector("#close").onclick = () =>
+  document.querySelector("#composer").close();
+show();
