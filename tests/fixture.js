@@ -1,4 +1,15 @@
 // Provider simulator for browser tests only. Never included in the installable extension ZIP.
+let releaseLoading;
+const loadingGate = new URLSearchParams(location.search).has("hold")
+  ? new Promise(resolve => { releaseLoading = resolve; }) : Promise.resolve();
+if (releaseLoading) {
+  const release = document.createElement("button");
+  release.id = "release-loading";
+  release.textContent = "Finish loading test account";
+  release.style.cssText = "position:fixed;bottom:10px;right:10px;z-index:2147483640";
+  release.onclick = () => { releaseLoading(); release.remove(); };
+  document.documentElement.append(release);
+}
 window.chrome = {
   runtime: {
     sendMessage: async (m) => {
@@ -14,8 +25,10 @@ window.chrome = {
         );
         return { ok: true };
       }
-      if (m.type === "GET")
+      if (m.type === "GET") {
+        await loadingGate;
         return JSON.parse(sessionStorage.getItem("fixture-myx") || "null");
+      }
       if (m.type === "SET")
         sessionStorage.setItem("fixture-myx", JSON.stringify(m.data));
       if (m.type === "CLEAR") sessionStorage.removeItem("fixture-myx");

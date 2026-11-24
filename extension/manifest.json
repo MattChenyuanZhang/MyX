@@ -19,6 +19,7 @@
         "https://x.com/*"
       ],
       "js": [
+        "shell.js",
         "boot.js",
         "engine.js",
         "content.js"
