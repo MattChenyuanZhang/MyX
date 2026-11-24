@@ -16,7 +16,7 @@ This update adds profile preview cards, native Lists and Messages destinations, 
 
 ## Public download
 
-A public v0.4.0 release is available at the stable `releases/latest/download/myx-extension.zip` URL while 0.5.0 awaits final installed verification. An unauthenticated download-link check followed redirects and returned HTTP 200 with an attachment named `myx-extension.zip`. The ZIP contains runtime files, `START-HERE.html`, text instructions, and the MIT license; no session data is packaged. No Git commands or GitHub account are required.
+Public ZIP releases use the stable `releases/latest/download/myx-extension.zip` URL. An unauthenticated download-link check followed redirects and returned HTTP 200 with an attachment named `myx-extension.zip`. The ZIP contains runtime files, `START-HERE.html`, text instructions, and the MIT license; no session data is packaged. No Git commands or GitHub account are required.
 
 The ZIP requires Chrome's unpacked-extension installation steps. It is not a Chrome Web Store listing.
 
@@ -29,7 +29,13 @@ The initial installed 0.5.0 check successfully loaded a real profile biography a
 
 Both repairs have automated regression tests. The browser fixture now reproduces the compact switcher with no handle; Messages retains the signed-in account, survives refresh and keeps its native controls operable.
 
-Final installed 0.5.1 avatar and Messages checks are pending the user's extension reload.
+Final installed 0.5.1 checks passed in the signed-in desktop Chrome session:
+
+- A real profile preview showed its avatar, biography, and following/follower counts. The temporary inactive lookup tab had closed after the result. Reopening the same preview displayed its cached complete details.
+- Messages opened with the correct signed-in account, the active sidebar selection and compact layout. The feed-specific right sidebar was hidden. Refresh kept the Messages title and signed-in account instead of falling back to a signed-out reader.
+- Lists opened its real native page inside MyX and received the correct active selection.
+- Returning from the new destinations preserved all 48 collected timeline records with 48 confirmed activity timestamps.
+- The checked live flows produced no browser console errors. No messages or lists were created on the live account.
 
 X's existing messaging route was observed to lead to its native security setup for this account. MyX retains X's own setup; the test does not change security credentials, publish messages or create lists on the live account. Full inbox access depends on completing X's account-specific security flow.
 
