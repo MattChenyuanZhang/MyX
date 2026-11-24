@@ -1,6 +1,6 @@
 # MyX verification — November 23, 2026
 
-Status: preview build; full user acceptance is NOT complete.
+Status: installed Chrome extension verified against live X. Full user acceptance remains incomplete because complete reply coverage and exact repost activity timestamps are unavailable from the collected DOM.
 
 ## Acceptance targets
 
@@ -44,30 +44,45 @@ Defects found and repaired:
 5. Programmatic page-generated clicks could reach extension handlers through the shared DOM. Sensitive UI handlers now require trusted user events.
 6. A refreshed For You collection could retain its previous ordering and relationship snapshots. Refresh now replaces those source snapshots before collection.
 
-The final two small repairs received syntax/model checks; the subsequent full browser rerun was blocked by the browser security gate. Do not represent that rerun as passed.
+## Installed-extension verification on live X
 
-## Live X inspection
+The user installed the unpacked extension and signed directly into X. Live Chrome checks on November 23, 2026 verified:
 
-The user signed in directly on X. Read-only inspection confirmed the current English-language account menu, Following / For You tabs, canonical timestamp links, and native reply, retweet, like, bookmark selectors. A real profile displayed a distinct relationship control separate from suggested-user buttons.
+- Installation/content-script activation and account detection without an OpenAI login or developer keys.
+- Collection of 27 Following posts and 12 actual For You posts through native X timeline tabs.
+- Native profile relationship verification; two eligible discovery authors were available.
+- Original post timestamps were nonincreasing across the rendered following feed; discovery appeared at positions 11 and 22.
+- Session state and the collection survived full-page navigation and reload.
+- Exact-post Like activated X's Unlike state; Unlike restored the original state.
+- Exact-post Bookmark activated X's Remove Bookmark state; removing it restored the original state.
+- A subsequent fresh load found the exact post and confirmed unliked, unbookmarked, and not reposted. All test reaction changes were restored.
+- Reply opened X's composer addressed to the correct post/account; it was closed empty.
+- Repost opened the exact post's native Repost/Quote menu. No repost was submitted.
+- Quote opened the native composer with the correct quoted post; it was closed without publishing.
+- New-post navigation opened the native X composer. A generated 64-by-64 PNG uploaded successfully and produced native Edit media / Remove media controls. The attachment was removed and the empty composer closed; no post was published.
+- Search narrowed the reader to the expected matching post.
+- Share successfully wrote the canonical post link to the clipboard.
+- Open conversation loaded X's real Conversation timeline for the selected post.
+- The repost filter displayed eight collected reposts, each carrying the original-timestamp limitation label.
+- A live reader screenshot was reviewed. Private screenshot evidence is outside the public repository.
 
-The extension itself was NOT confirmed installed on live X. Opening Chrome's extension manager was rejected by the browser safety policy, which forbids alternate installation workarounds. A later local browser rerun was also rejected by that gate. The user must complete Load unpacked before live validation can resume.
+No user's feed content, account identifier, post identifiers, or private screenshots are included in this report or the public repository.
 
-No real tweets, replies, reposts, follows, or uploads were created for testing. A live like/bookmark test, if requested, should target a user-selected post and restore its starting state. Follow/unfollow and public publishing need an explicit test target and content.
+The earlier browser-security installation blocker was resolved by the user installing the extension manually. No prohibited browser workaround was used. Current live checks also exercised the trusted-event handlers, desired-state comparison, profile relationship checks, and refreshed For You behavior after the local repairs.
 
-## Unverified or incomplete targets
+## Incomplete or untested targets
 
-- Extension installation and live storage/message wiring in Chrome.
-- Live post actions, account switching, native drafts, uploads, conversation pagination, repost/undo, quote submission, share clipboard, follow/unfollow, and popup launch.
-- Complete recovery of every followed-account reply: X's home timeline may omit replies, and MyX cannot recover posts never loaded by X.
-- Repost activity timestamp chronology: the DOM exposes the original post time. MyX labels and sorts by that timestamp, which does not meet exact activity-time chronology.
-- Unlimited discovery and complete history: collections are bounded and X virtualizes its feeds.
-- Responsive/dark-mode screenshot verification and real-network failure/reversion handling.
+- Full recovery of every followed-account reply: X's home timeline may omit replies. Thread context can also render original posts by accounts the user does not follow. The current reader collects rendered articles and cannot promise a strictly exhaustive followed-author-only set.
+- Exact repost activity chronology: X's rendered timestamp is the original post time. The reader labels and sorts by that time; this does not meet activity-time chronology.
+- Reply/quote/new-post publishing, actual repost/undo, and follow/unfollow were not exercised against real accounts. Native composers/menus opened, but that is not proof of publication or relationship mutation success.
+- Two independent live account sessions, toolbar popup launch, dark/mobile layouts, server-rejected actions, and delayed action reversions remain untested. Synthetic account-isolation checks passed.
+- Unlimited discovery and complete history remain outside the bounded, virtualized collection. Relationship verification is a snapshot and can become stale after actions elsewhere.
 
 ## Resume checklist
 
-1. Load `extension/` unpacked in Chrome, refresh signed-in X, and open MyX.
-2. Collect both sources; verify discovery profiles. Compare post IDs and source membership without exporting private content.
-3. Verify native action forwarding against a user-approved disposable post and confirm final state on X, including reload and server failures.
+1. Keep the installed `extension/` build current; reload it in Chrome after runtime file changes.
+2. Recheck source membership and reply coverage on additional user-controlled timelines without exporting private content.
+3. Use a user-approved disposable post and explicit test content for any publishing/reposting checks; confirm server failures and delayed reversions.
 4. Test new post/media drafts, quote/repost menus, native conversation and follow controls without publishing unwanted content.
 5. Confirm independent sessions using two user-controlled accounts; check local storage cleanup on tab close.
 6. Recheck final UI, accessibility, search, filters, no-discovery and no-post states.
