@@ -1,6 +1,6 @@
 # Install MyX in Chrome
 
-**[Download MyX for Chrome (.zip)](https://github.com/MattChenyuanZhang/myx/releases/latest/download/myx-extension.zip)**
+**[Download MyX for Chrome (.zip)](https://github.com/MattChenyuanZhang/MyX/releases/latest/download/myx-extension.zip)**
 
 No GitHub account, OpenAI account, API key, or command line is required.
 

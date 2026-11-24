@@ -4,7 +4,7 @@ A Chrome Manifest V3 extension that reads your signed-in X timeline, keeps nativ
 
 ## Download and install
 
-### [Download MyX for Chrome (.zip)](https://github.com/MattChenyuanZhang/myx/releases/latest/download/myx-extension.zip)
+### [Download MyX for Chrome (.zip)](https://github.com/MattChenyuanZhang/MyX/releases/latest/download/myx-extension.zip)
 
 No GitHub account, OpenAI login, API key, or command line is required.
 
