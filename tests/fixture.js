@@ -184,7 +184,17 @@ function show() {
   }
   const match = location.pathname.match(/^\/([^/]+)\/status\/(\d+)$/);
   if (match) {
-    native.innerHTML = card(Number(match[2]), match[1]);
+    native.innerHTML =
+      card(Number(match[2]), match[1]) +
+      "<h3>Replies</h3>" +
+      card(9101, "reader_one").replace(
+        "Collected post 9101 — a thought from the people you follow.",
+        "A test reply to this conversation.",
+      ) +
+      card(9102, "reader_two").replace(
+        "Collected post 9102 — a thought from the people you follow.",
+        "Another reply in the same conversation.",
+      );
     return;
   }
   if (location.pathname === "/i/lists") {

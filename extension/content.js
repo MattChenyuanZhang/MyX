@@ -331,6 +331,7 @@
   let rateHandle = "",
     rateAnchor,
     rateHideTimer,
+    ratePinned = false,
     rateDirty = false;
   const rateKinds = { post: "Posts", reply: "Replies", repost: "Reposts" };
   function accountRulesMarkup() {
@@ -355,16 +356,19 @@
   function closeRates() {
     clearTimeout(rateHideTimer);
     rateCard.hidden = true;
+    ratePinned = false;
     rateHandle = "";
     if (rateDirty) {
       rateDirty = false;
       render();
     }
   }
-  function openRates(button) {
+  function openRates(button, pinned = false) {
     const h = M.handle(button.dataset.rateHandle);
     if (!M.validHandle(h)) return;
     clearTimeout(rateHideTimer);
+    if (!rateCard.hidden && ratePinned && !pinned && rateHandle !== h) return;
+    ratePinned = pinned || (rateHandle === h && ratePinned);
     if (!rateCard.hidden && rateHandle === h) return;
     hidePreview();
     rateHandle = h;
@@ -439,12 +443,19 @@
       !button?.contains(e.relatedTarget)
     ) {
       clearTimeout(rateHideTimer);
-      rateHideTimer = setTimeout(closeRates, 450);
+      rateHideTimer = setTimeout(() => {
+        if (
+          !ratePinned &&
+          !rateCard.contains(root.activeElement) &&
+          !rateAnchor?.contains(root.activeElement)
+        )
+          closeRates();
+      }, 450);
     }
   });
   root.addEventListener("focusout", (e) => {
     if (
-      rateCard.contains(e.target) &&
+      (rateCard.contains(e.target) || rateAnchor?.contains(e.target)) &&
       !rateCard.contains(e.relatedTarget) &&
       !rateAnchor?.contains(e.relatedTarget)
     )
@@ -466,7 +477,7 @@
     if (!e.isTrusted) return;
     const button = e.target.closest("[data-rate-handle]");
     if (button) {
-      openRates(button);
+      openRates(button, true);
       R("#rate-post").focus();
     } else if (!rateCard.contains(e.target)) closeRates();
   });
@@ -780,7 +791,7 @@
       p.context ||
       (M.validHandle(p.replyTo) ? "Replying to @" + p.replyTo : "");
     let date = new Date(Number.isFinite(p.eventTime) ? p.eventTime : p.time);
-    return `<article class="post" data-post="${p.id}" data-event="${esc(M.eventKey(p))}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${videoMarkup(p)}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div>${!p.discovery && M.validHandle(M.activityAccount(p)) ? `<button class="account-gear" data-rate-handle="${esc(M.activityAccount(p))}" aria-label="Feed settings for @${esc(M.activityAccount(p))}" title="Adjust account proportions">⚙</button>` : ""}</div></div></article>`;
+    return `<article class="post" tabindex="0" data-open-thread="${esc(p.url)}" aria-label="Open post by @${esc(p.handle)} and replies" data-post="${p.id}" data-event="${esc(M.eventKey(p))}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${videoMarkup(p)}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div>${!p.discovery && M.validHandle(M.activityAccount(p)) ? `<button class="account-gear" data-rate-handle="${esc(M.activityAccount(p))}" aria-label="Feed settings for @${esc(M.activityAccount(p))}" title="Adjust account proportions">⚙</button>` : ""}</div></div></article>`;
   }
   function render() {
     if (visible) persistUI();
@@ -1573,6 +1584,48 @@
     setMuted(R("#mute-handle").value, true);
   });
   // Profile/media/status links stay under the MyX shell.
+  function openPostCard(card) {
+    const link = M.statusLink(card?.dataset.openThread);
+    if (link) openSurface(link.url, "thread");
+  }
+  root.addEventListener("click", (e) => {
+    if (
+      !e.isTrusted ||
+      e.button !== 0 ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.shiftKey ||
+      e.altKey ||
+      e.defaultPrevented
+    )
+      return;
+    if (
+      e.target.closest(
+        "a,button,input,select,textarea,label,.video-block,[contenteditable]",
+      )
+    )
+      return;
+    if (
+      (
+        root.getSelection?.()?.toString() ||
+        window.getSelection()?.toString() ||
+        ""
+      ).trim()
+    )
+      return;
+    const card = e.target.closest("article[data-open-thread]");
+    if (card) openPostCard(card);
+  });
+  root.addEventListener("keydown", (e) => {
+    if (
+      e.isTrusted &&
+      e.key === "Enter" &&
+      e.target.matches("article[data-open-thread]")
+    ) {
+      e.preventDefault();
+      openPostCard(e.target);
+    }
+  });
   root.addEventListener("click", (e) => {
     if (!e.isTrusted || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey)
       return;
