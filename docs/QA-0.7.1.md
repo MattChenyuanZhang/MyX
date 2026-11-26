@@ -36,4 +36,3 @@ Local and final signed-in X verification completed on 2026-11-26 after reloading
 ## Scope
 
 The reader can show only the Following activity X returns. Existing collection/cache bounds remain; this is not a complete archive of every followed reply. X stream-only or expired video sources use the original player inside MyX. Per-account percentages are inclusion probabilities, not exact quotas for small batches. See QA-0.7.md for the refresh/video implementation and initial investigation.
-
