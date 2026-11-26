@@ -1,6 +1,6 @@
 # MyX 0.7.1 verification
 
-Local verification completed on 2026-11-26. Final live verification awaits the installed-extension reload. The public latest download remains 0.6.0 until that check passes.
+Local and final signed-in X verification completed on 2026-11-26 after reloading the installed 0.7.1 extension.
 
 ## Final behavior
 
@@ -22,6 +22,18 @@ Local verification completed on 2026-11-26. Final live verification awaits the i
 - Popup remained open and usable across separate tool calls after it was clicked, fixing the live-discovered disappearing-popup problem.
 - The preview MP4 is generated test content and is excluded from the installable ZIP. Screenshots are stored outside the repository.
 
-## Remaining live check
+## Final live X verification
 
-Reload 0.7.1, confirm fresh native Following activity, play a real MP4, test the single bar and persisted 0%/restore behavior, and click a post's body to verify real native comments. Do not claim the newly changed UI passed live until these checks finish.
+- The installed build rendered clickable post cards and exactly one range input per account popup. The popup stayed open and usable across separate interactions.
+- Native Following refreshes merged 47, then 29 additional activities into the reader. Success status and account checks remained active.
+- Setting a test account to 0% removed its visible activities. Feed settings retained its 0% rule after a page reload; Reset restored its activity.
+- Setting that account to 40% survived reload and retained the same selected activity IDs. That account had only one collected activity and the stable random sample excluded it, consistent with a probability rather than an exact small-batch quota. Automated tests cover approximately equal sampling rates across thousands of posts/replies/reposts.
+- Restored the test account's original 100% setting after verification. No real posts, replies, likes, reposts, follows or DMs were submitted.
+- Clicking a post's text opened its actual X status URL under the MyX Conversation heading. The native center pane displayed 18 post cards, replies, and X's reply composer, with MyX navigation retained.
+- Played a real X MP4 inside a feed card. It reached readyState 4 and played to its 10.98-second duration. Video controls did not trigger post-card navigation.
+- Screenshots remain outside the repository and installable ZIP. The ZIP is checked against all final runtime files and retains only the storage permission.
+
+## Scope
+
+The reader can show only the Following activity X returns. Existing collection/cache bounds remain; this is not a complete archive of every followed reply. X stream-only or expired video sources use the original player inside MyX. Per-account percentages are inclusion probabilities, not exact quotas for small batches. See QA-0.7.md for the refresh/video implementation and initial investigation.
+

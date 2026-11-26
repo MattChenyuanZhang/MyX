@@ -1,6 +1,6 @@
 # MyX 0.7.0 verification
 
-Local checks completed on 2026-11-25. The initial 0.7.0 runtime passed live refresh and video checks. Follow-up post-card navigation and popup-retention changes are verified locally and need a final extension reload. The requested single-bar control was clarified on 2026-11-26 as one overall visibility percentage; see QA-0.7.1.md. Keep the preceding public download latest until the final live check finishes.
+Local checks completed on 2026-11-25. The initial 0.7.0 runtime passed live refresh and video checks. Follow-up post-card navigation, popup-retention changes and the single account slider were verified live in 0.7.1; see QA-0.7.1.md. The requested single-bar control was clarified on 2026-11-26 as one overall visibility percentage; see QA-0.7.1.md. This file records the earlier development stage; the final verification is in QA-0.7.1.md.
 
 ## Debug report
 
