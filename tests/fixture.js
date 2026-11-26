@@ -20,6 +20,70 @@ if (releaseLoading) {
 window.chrome = {
   runtime: {
     sendMessage: async (m) => {
+      if (m.type === "RULES_GET" || m.type === "RULE_SET") {
+        const key = "fixture-rules-" + m.account;
+        const value = JSON.parse(
+          localStorage.getItem(key) || '{"seed":"fixture-seed","accounts":{}}',
+        );
+        if (m.type === "RULE_SET") {
+          value.accounts[m.handle] = {
+            ...value.accounts[m.handle],
+            [m.kind]: m.percent,
+          };
+          localStorage.setItem(key, JSON.stringify(value));
+        }
+        return value;
+      }
+      if (m.type === "FEED_REFRESH") {
+        if (new URLSearchParams(location.search).has("refresh-error"))
+          return { error: "Simulated X refresh unavailable. Try again." };
+        const count =
+          Number(sessionStorage.getItem("fixture-refresh") || 0) + 1;
+        sessionStorage.setItem("fixture-refresh", String(count));
+        const now = Date.now();
+        const baseTime =
+          Number(sessionStorage.getItem("fixture-base-time")) || now;
+        sessionStorage.setItem("fixture-base-time", String(baseTime));
+        const base = Array.from({ length: 18 }, (_, i) => ({
+          id: String(300 + i),
+          eventId: String(300 + i),
+          eventTime: baseTime - 60000 - i * 1000,
+          time: baseTime - 60000 - i * 1000,
+          handle: "friend",
+          kind: i < 6 ? "post" : i < 12 ? "reply" : "repost",
+          actor: i >= 12 ? "friend" : null,
+          followedActor: true,
+          text: "Fixture account sampling activity " + i,
+          name: "Friend",
+          video: i === 0,
+          videos:
+            i === 0
+              ? [
+                  {
+                    src: "https://video.twimg.com/test-fixture.mp4",
+                    poster: "",
+                  },
+                ]
+              : [],
+        }));
+        return {
+          account: m.account,
+          items: [
+            {
+              id: String(800 + count),
+              eventId: String(800 + count),
+              eventTime: now,
+              time: now,
+              handle: "latestwriter",
+              name: "Latest Writer",
+              kind: "post",
+              followedActor: true,
+              text: "Newly refreshed activity " + count,
+            },
+            ...base,
+          ],
+        };
+      }
       if (m.type === "MIX_GET")
         return JSON.parse(
           sessionStorage.getItem("fixture-mix-" + m.account) || "null",
@@ -234,3 +298,19 @@ document.querySelector("#submit").onclick = () => {
 document.querySelector("#close").onclick = () =>
   document.querySelector("#composer").close();
 show();
+
+// Fixture-only media provider: replace the fictional X MP4 with a local test clip.
+const wireFixtureVideo = () => {
+  const root = document.getElementById("myx-root")?.shadowRoot;
+  if (!root) return;
+  const mapVideo = () =>
+    root
+      .querySelectorAll('video[src="https://video.twimg.com/test-fixture.mp4"]')
+      .forEach((v) => (v.src = "/tests/fixture-video.mp4"));
+  new MutationObserver(mapVideo).observe(root, {
+    childList: true,
+    subtree: true,
+  });
+  mapVideo();
+};
+wireFixtureVideo();

@@ -1,5 +1,9 @@
 (async function () {
   "use strict";
+  if (location.hash === "#myx-feed-sync") {
+    await globalThis.MyXSync.run();
+    return;
+  }
   if (document.readyState === "loading")
     await new Promise((r) =>
       document.addEventListener("DOMContentLoaded", r, { once: true }),
@@ -58,6 +62,26 @@
       view,
       open: visible,
     });
+    // Keep the newest activity when a long-running reader approaches Chrome's cache limit.
+    while (JSON.stringify(snapshot).length > 6500000) {
+      const key = ["following", "forYou", "timelineMeta"]
+        .filter((k) => snapshot.data[k]?.length > 1)
+        .sort(
+          (a, b) =>
+            JSON.stringify(snapshot.data[b]).length -
+            JSON.stringify(snapshot.data[a]).length,
+        )[0];
+      if (!key) break;
+      const items = snapshot.data[key];
+      const keep = new Set(
+        [...items]
+          .sort((a, b) => (b.eventTime || b.time) - (a.eventTime || a.time))
+          .slice(0, Math.max(1, Math.floor(items.length * 0.75)))
+          .map(M.eventKey),
+      );
+      snapshot.data[key] = items.filter((p) => keep.has(M.eventKey(p)));
+      data[key] = snapshot.data[key];
+    }
     saveQueue = saveQueue.then(() => msg({ type: "SET", data: snapshot }));
     return saveQueue;
   }
@@ -150,6 +174,14 @@
       ),
       photos: photo.slice(0, 4),
       video: !!$('video,[data-testid="videoPlayer"]', article),
+      videos: metadata?.videos?.length
+        ? metadata.videos
+        : M.cleanVideos(
+            all("video", article).map((v) => ({
+              src: v.currentSrc || v.src,
+              poster: v.poster,
+            })),
+          ),
       liked: !!$('[data-testid="unlike"]', article),
       bookmarked: !!$('[data-testid="removeBookmark"]', article),
       reposted: !!$('[data-testid="unretweet"]', article),
@@ -288,6 +320,294 @@
       saveMix();
     }
   });
+
+  const rateCard = document.createElement("div");
+  rateCard.id = "account-rate-card";
+  rateCard.className = "rate-card";
+  rateCard.hidden = true;
+  rateCard.setAttribute("role", "dialog");
+  rateCard.setAttribute("aria-label", "Account feed settings");
+  root.append(rateCard);
+  let rateHandle = "",
+    rateAnchor,
+    rateHideTimer,
+    rateDirty = false;
+  const rateKinds = { post: "Posts", reply: "Replies", repost: "Reposts" };
+  function accountRulesMarkup() {
+    const handles = Object.keys(prefs.accountRules?.accounts || {});
+    return `<section class="account-rules"><h3>Account proportions</h3><p class="tiny">Hover the ⚙ at the end of a following activity to choose how often you see posts, replies, and reposts from that account. Settings apply only in MyX.</p>${handles
+      .map(
+        (h) =>
+          `<button class="secondary" data-rate-handle="${esc(h)}">@${esc(h)} · ${Object.keys(
+            rateKinds,
+          )
+            .map(
+              (k) =>
+                rateKinds[k] +
+                " " +
+                M.accountRate(prefs.accountRules, h, k) +
+                "%",
+            )
+            .join(" · ")}</button>`,
+      )
+      .join("")}</section>`;
+  }
+  function closeRates() {
+    clearTimeout(rateHideTimer);
+    rateCard.hidden = true;
+    rateHandle = "";
+    if (rateDirty) {
+      rateDirty = false;
+      render();
+    }
+  }
+  function openRates(button) {
+    const h = M.handle(button.dataset.rateHandle);
+    if (!M.validHandle(h)) return;
+    clearTimeout(rateHideTimer);
+    if (!rateCard.hidden && rateHandle === h) return;
+    hidePreview();
+    rateHandle = h;
+    rateAnchor = button;
+    rateCard.innerHTML = `<h3>Show less or more from @${esc(h)}</h3><p class="tiny">Each percentage is the chance of including an activity. Random choices stay consistent across refreshes.</p>${Object.keys(
+      rateKinds,
+    )
+      .map(
+        (k) =>
+          `<label for="rate-${k}">${rateKinds[k]}<output id="rate-output-${k}">${M.accountRate(prefs.accountRules, h, k)}%</output></label><input id="rate-${k}" type="range" min="0" max="100" step="1" data-rate-kind="${k}" aria-label="${rateKinds[k]} from @${esc(h)}" value="${M.accountRate(prefs.accountRules, h, k)}">`,
+      )
+      .join(
+        "",
+      )}<button class="secondary" id="reset-account-rates">Reset to 100%</button> <button class="secondary" id="close-account-rates">Done</button><p class="tiny" id="rate-save-status">Saved automatically; changes apply when you close this window.</p>`;
+    rateCard.hidden = false;
+    const b = button.getBoundingClientRect(),
+      c = rateCard.getBoundingClientRect();
+    rateCard.style.left =
+      Math.max(8, Math.min(b.right - c.width, innerWidth - c.width - 8)) + "px";
+    rateCard.style.top =
+      Math.max(8, Math.min(b.bottom + 8, innerHeight - c.height - 8)) + "px";
+  }
+  async function setRate(kind, value) {
+    if (!rateHandle || !account) return;
+    const h = rateHandle,
+      owner = account;
+    prefs.accountRules ||= { seed: owner, accounts: {} };
+    prefs.accountRules.accounts ||= {};
+    Object.defineProperty(prefs.accountRules.accounts, h, {
+      value: {
+        ...(Object.hasOwn(prefs.accountRules.accounts, h)
+          ? prefs.accountRules.accounts[h]
+          : {}),
+        [kind]: value,
+      },
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+    rateDirty = true;
+    const result = await msg({
+      type: "RULE_SET",
+      account: owner,
+      handle: h,
+      kind,
+      percent: value,
+    });
+    if (account !== owner) return;
+    if (result?.seed && result.accounts) prefs.accountRules = result;
+    else if (rateHandle === h && !rateCard.hidden)
+      R("#rate-save-status").textContent =
+        "Could not save. Try again before closing.";
+    save();
+  }
+  root.addEventListener("pointerover", (e) => {
+    if (!e.isTrusted) return;
+    const button = e.target.closest("[data-rate-handle]");
+    if (button) openRates(button);
+    if (rateCard.contains(e.target)) clearTimeout(rateHideTimer);
+  });
+  root.addEventListener("focusin", (e) => {
+    if (!e.isTrusted) return;
+    const button = e.target.closest("[data-rate-handle]");
+    if (button) openRates(button);
+    if (rateCard.contains(e.target)) clearTimeout(rateHideTimer);
+  });
+  root.addEventListener("pointerout", (e) => {
+    const button = e.target.closest("[data-rate-handle]");
+    if (
+      (button || rateCard.contains(e.target)) &&
+      !rateCard.contains(e.relatedTarget) &&
+      !button?.contains(e.relatedTarget)
+    ) {
+      clearTimeout(rateHideTimer);
+      rateHideTimer = setTimeout(closeRates, 450);
+    }
+  });
+  root.addEventListener("focusout", (e) => {
+    if (
+      rateCard.contains(e.target) &&
+      !rateCard.contains(e.relatedTarget) &&
+      !rateAnchor?.contains(e.relatedTarget)
+    )
+      closeRates();
+  });
+  rateCard.addEventListener("input", (e) => {
+    if (!e.isTrusted || !e.target.dataset.rateKind) return;
+    R("#rate-output-" + e.target.dataset.rateKind).textContent =
+      e.target.value + "%";
+  });
+  rateCard.addEventListener("change", (e) => {
+    if (e.isTrusted && e.target.dataset.rateKind)
+      setRate(e.target.dataset.rateKind, Number(e.target.value));
+  });
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeRates();
+  });
+  root.addEventListener("click", (e) => {
+    if (!e.isTrusted) return;
+    const button = e.target.closest("[data-rate-handle]");
+    if (button) {
+      openRates(button);
+      R("#rate-post").focus();
+    } else if (!rateCard.contains(e.target)) closeRates();
+  });
+  let refreshGeneration = 0;
+  let refreshing = false,
+    lastRefreshAttempt = 0,
+    queuedUpdates = false;
+  function deferFeedUpdate() {
+    if (view !== "home" || surface !== "feed") {
+      render();
+      return;
+    }
+    if (
+      R(".app").scrollTop > 120 ||
+      !rateCard.hidden ||
+      [...root.querySelectorAll("video")].some((v) => !v.paused && !v.ended)
+    ) {
+      queuedUpdates = true;
+      R("#new-posts").hidden = false;
+    } else render();
+  }
+  async function refreshLatest(manual = false) {
+    if (
+      refreshing ||
+      collecting ||
+      !account ||
+      readAccount() !== account ||
+      (!manual &&
+        (!visible ||
+          surface !== "feed" ||
+          view !== "home" ||
+          document.hidden ||
+          navigator.onLine === false))
+    )
+      return;
+    if (!manual && Date.now() - lastRefreshAttempt < 60000) return;
+    const owner = account,
+      generation = ++refreshGeneration;
+    refreshing = true;
+    lastRefreshAttempt = Date.now();
+    R("#refresh-latest").disabled = true;
+    R("#sync-status").textContent = "Checking X for latest Following posts…";
+    try {
+      await save();
+      if (account !== owner || generation !== refreshGeneration) return;
+      const result = await msg({ type: "FEED_REFRESH", account: owner });
+      if (account !== owner || readAccount() !== owner) return;
+      if (
+        !result ||
+        result.error ||
+        result.account !== owner ||
+        !Array.isArray(result.items)
+      )
+        throw Error(result?.error || "Could not refresh X. Try again.");
+      const before = new Set(data.following.map(M.eventKey));
+      acceptTimeline({
+        account: owner,
+        source: "following",
+        items: result.items,
+      });
+      const count = data.following.filter(
+        (p) => !before.has(M.eventKey(p)),
+      ).length;
+      R("#sync-status").textContent =
+        `Checked ${new Date().toLocaleTimeString()} · ${count ? count + " new activities" : "Up to date"} · auto-refresh every minute while reading`;
+    } catch (e) {
+      R("#sync-status").textContent = e.message;
+    } finally {
+      if (generation === refreshGeneration) {
+        refreshing = false;
+        R("#refresh-latest").disabled = false;
+      }
+    }
+  }
+  function paintPosts(posts) {
+    const feed = R("#feed");
+    const old = new Map(
+      [...feed.querySelectorAll("article[data-event]")].map((el) => [
+        el.dataset.event,
+        el,
+      ]),
+    );
+    let previous = null;
+    for (const p of posts) {
+      const key = M.eventKey(p),
+        markup = postMarkup(p);
+      let node = old.get(key);
+      old.delete(key);
+      if (!node || node.dataset.markup !== markup) {
+        const holder = document.createElement("div");
+        holder.innerHTML = markup;
+        const next = holder.firstElementChild;
+        if (node) {
+          const a = node.querySelectorAll("video"),
+            b = next.querySelectorAll("video");
+          b.forEach((v, i) => {
+            if (a[i] && a[i].getAttribute("src") === v.getAttribute("src"))
+              v.replaceWith(a[i]);
+          });
+          node.replaceWith(next);
+        }
+        node = next;
+        node.dataset.markup = markup;
+      }
+      const expected = previous
+        ? previous.nextElementSibling
+        : feed.firstElementChild;
+      if (node !== expected) feed.insertBefore(node, expected);
+      previous = node;
+    }
+    for (const node of old.values()) node.remove();
+    for (const node of [...feed.children])
+      if (!node.matches("article[data-event]")) node.remove();
+  }
+  function videoMarkup(p) {
+    const videos = M.cleanVideos(p.videos);
+    if (!p.video && !videos.length) return "";
+    const fallback = (hidden = false) =>
+      `<button class="secondary video-fallback" data-video-native="${p.id}" ${hidden ? "hidden" : ""}>Open original video player</button>`;
+    return videos.length
+      ? videos
+          .map(
+            (v) =>
+              `<div class="video-block">${v.src ? `<video controls playsinline preload="none" src="${esc(v.src)}" ${v.poster ? `poster="${esc(v.poster)}"` : ""} ${v.gif ? "loop muted" : ""} aria-label="Video by @${esc(p.handle)}"></video>` : v.poster ? `<img src="${esc(v.poster)}" alt="Video preview">` : ""}${fallback(!!v.src)}</div>`,
+          )
+          .join("")
+      : `<div class="video-block">${fallback()}</div>`;
+  }
+
+  root.addEventListener(
+    "error",
+    (e) => {
+      if (e.target.tagName === "VIDEO") {
+        const fallback = e.target
+          .closest(".video-block")
+          ?.querySelector(".video-fallback");
+        if (fallback) fallback.hidden = false;
+      }
+    },
+    true,
+  );
   const profileCard = R("#profile-card");
   let previewAnchor = null,
     previewHandle = "",
@@ -460,7 +780,7 @@
       p.context ||
       (M.validHandle(p.replyTo) ? "Replying to @" + p.replyTo : "");
     let date = new Date(Number.isFinite(p.eventTime) ? p.eventTime : p.time);
-    return `<article class="post" data-post="${p.id}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${p.video ? `<a class="secondary" href="${p.url}">Watch video on X</a>` : ""}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div></div></div></article>`;
+    return `<article class="post" data-post="${p.id}" data-event="${esc(M.eventKey(p))}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${videoMarkup(p)}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div>${!p.discovery && M.validHandle(M.activityAccount(p)) ? `<button class="account-gear" data-rate-handle="${esc(M.activityAccount(p))}" aria-label="Feed settings for @${esc(M.activityAccount(p))}" title="Adjust account proportions">⚙</button>` : ""}</div></div></article>`;
   }
   function render() {
     if (visible) persistUI();
@@ -529,7 +849,7 @@
     if (view === "settings") {
       status("Changes save automatically for @" + account + ".");
       R("#feed").innerHTML =
-        `<div class="empty"><h2>Your feed, your rules.</h2>${mixMarkup()}${settingsMarkup()}<p>Discovery preserves the order X presented in For You. Activity order uses confirmed event timestamps when all collected items have them; otherwise it preserves X’s observed Following order. Unknown repost dates are never invented.</p><p>Post data stays in browser session storage and is cleared when the tab closes. It is never pushed to GitHub.</p><label class="setting">Feed order<select id="order"><option value="activity" ${prefs.order === "activity" ? "selected" : ""}>Activity time / X Following order</option><option value="post-time" ${prefs.order === "post-time" ? "selected" : ""}>Original post time</option></select></label><h3>Muted accounts</h3><p>MyX mutes and imported X mutes hide posts by that author and reposts by that actor.</p><form id="mute-form"><input id="mute-handle" placeholder="@username" aria-label="Account to mute" maxlength="16"><button class="secondary" type="submit">Mute in MyX</button></form><div class="muted-list">${[...new Set([...(data.muted || []), ...(data.xMuted || [])])].map((h) => `<div class="setting"><span>@${esc(h)} ${(data.xMuted || []).includes(h) ? "(X mute)" : ""}</span>${(data.muted || []).includes(h) ? `<button class="secondary" data-unmute="${esc(h)}">Unmute in MyX</button>` : ""}</div>`).join("") || "No mutes imported yet."}</div><button class="secondary" id="import-mutes">Import X mutes</button><p class="tiny">X mutes are a snapshot. Import again after changing them on X. MyX never automatically unmutes an account on X.</p><button class="secondary" id="clear">Clear collected posts</button></div>`;
+        `<div class="empty"><h2>Your feed, your rules.</h2>${mixMarkup()}${settingsMarkup()}${accountRulesMarkup()}<p>Discovery preserves the order X presented in For You. Activity order uses confirmed event timestamps when all collected items have them; otherwise it preserves X’s observed Following order. Unknown repost dates are never invented.</p><p>Post data stays in browser session storage and is cleared when the tab closes. It is never pushed to GitHub.</p><label class="setting">Feed order<select id="order"><option value="activity" ${prefs.order === "activity" ? "selected" : ""}>Activity time / X Following order</option><option value="post-time" ${prefs.order === "post-time" ? "selected" : ""}>Original post time</option></select></label><h3>Muted accounts</h3><p>MyX mutes and imported X mutes hide posts by that author and reposts by that actor.</p><form id="mute-form"><input id="mute-handle" placeholder="@username" aria-label="Account to mute" maxlength="16"><button class="secondary" type="submit">Mute in MyX</button></form><div class="muted-list">${[...new Set([...(data.muted || []), ...(data.xMuted || [])])].map((h) => `<div class="setting"><span>@${esc(h)} ${(data.xMuted || []).includes(h) ? "(X mute)" : ""}</span>${(data.muted || []).includes(h) ? `<button class="secondary" data-unmute="${esc(h)}">Unmute in MyX</button>` : ""}</div>`).join("") || "No mutes imported yet."}</div><button class="secondary" id="import-mutes">Import X mutes</button><p class="tiny">X mutes are a snapshot. Import again after changing them on X. MyX never automatically unmutes an account on X.</p><button class="secondary" id="clear">Clear collected posts</button></div>`;
       updateMixControls();
       return;
     }
@@ -545,9 +865,12 @@
       return;
     }
     let ps = M.feed(data, prefs);
-    R("#feed").innerHTML = ps.length
-      ? ps.map(postMarkup).join("")
-      : `<div class="empty"><h2>${prefs.search ? "No matching posts." : "Your people, in time order."}</h2><p>${prefs.search ? "Try a different search." : "Start by collecting your Following feed. Then collect For You and verify discovery authors to build your custom feed mix."}</p><button class="primary blue" data-view="sources">Set up your feed</button></div>`;
+    if (ps.length) paintPosts(ps);
+    else
+      R("#feed").innerHTML =
+        `<div class="empty"><h2>${prefs.search ? "No matching posts." : "Your people, in time order."}</h2><p>${prefs.search ? "Try a different search." : "Start by collecting your Following feed. Then collect For You and verify discovery authors to build your custom feed mix."}</p><button class="primary blue" data-view="sources">Set up your feed</button></div>`;
+    queuedUpdates = false;
+    R("#new-posts").hidden = true;
     if (restoreReaderScroll) {
       R(".app").scrollTop = prefs.readerScroll || 0;
       restoreReaderScroll = false;
@@ -583,6 +906,7 @@
     host.style.display = "block";
     launcher.style.display = "none";
     render();
+    if (modelReady) refreshLatest();
   }
   function hide() {
     sessionStorage.removeItem("myx-shell-open");
@@ -862,11 +1186,23 @@
     clearTimeout(mixSaveTimer);
     delete prefs.discoveryPercent;
     prefs.discovery = true;
+    rateDirty = false;
+    closeRates();
     hidePreview();
+    prefs.accountRules = { seed: current, accounts: {} };
+    queuedUpdates = false;
+    lastRefreshAttempt = 0;
     data = M.empty(current);
     pending = null;
     surface = "feed";
+    refreshGeneration++;
+    refreshing = false;
+    render();
+    await msg({ type: "FEED_CANCEL" });
     await msg({ type: "CLEAR" });
+    const rules = await msg({ type: "RULES_GET", account: current });
+    if (account !== current) return;
+    prefs.accountRules = rules || { seed: current, accounts: {} };
     const storedMix = await msg({ type: "MIX_GET", account: current });
     if (account !== current) return;
     if (
@@ -1040,6 +1376,35 @@
     if (!e.isTrusted) return;
     let b = e.target.closest("button");
     if (!b) return;
+    if (b.id === "refresh-latest") {
+      refreshLatest(true);
+      return;
+    }
+    if (b.id === "new-posts") {
+      queuedUpdates = false;
+      R(".app").scrollTop = 0;
+      render();
+      return;
+    }
+    if (b.dataset.videoNative) {
+      const p = [...data.following, ...data.forYou].find(
+        (p) => p.id === b.dataset.videoNative,
+      );
+      if (p) openSurface(p.url, "thread");
+      return;
+    }
+    if (b.id === "close-account-rates") {
+      closeRates();
+      return;
+    }
+    if (b.id === "reset-account-rates") {
+      for (const kind of Object.keys(rateKinds)) {
+        R("#rate-" + kind).value = 100;
+        R("#rate-output-" + kind).textContent = "100%";
+        await setRate(kind, 100);
+      }
+      return;
+    }
     if (b.id === "stop-collection") {
       collecting = false;
       return;
@@ -1311,6 +1676,7 @@
               .filter((i) => i.url)
           : [],
         video: p.video === true,
+        videos: M.cleanVideos(p.videos),
         liked: p.liked === true,
         bookmarked: p.bookmarked === true,
         reposted: p.reposted === true,
@@ -1341,7 +1707,7 @@
     else data.forYou = M.merge(data.forYou, safe);
     data.updated = Date.now();
     save();
-    if (visible && !collecting && surface === "feed") render();
+    if (visible && !collecting && surface === "feed") deferFeedUpdate();
   }
   window.addEventListener("message", (e) => {
     if (
@@ -1377,6 +1743,10 @@
   }
   modelReady = true;
   timelineQueue.splice(0).forEach(acceptTimeline);
+  prefs.accountRules = (await msg({ type: "RULES_GET", account })) || {
+    seed: account,
+    accounts: {},
+  };
   const storedMix = await msg({ type: "MIX_GET", account });
   if (
     typeof storedMix?.percent === "number" &&
@@ -1389,6 +1759,13 @@
   if (storedMutes?.muted) data.muted = storedMutes.muted;
   if (storedMutes?.xMuted) data.xMuted = storedMutes.xMuted;
   chrome.storage?.onChanged?.addListener((changes, area) => {
+    const rules = changes["myx:rules:" + account]?.newValue;
+    if (area === "local" && rules) {
+      prefs.accountRules = rules;
+      save();
+      if (rateCard.hidden) deferFeedUpdate();
+      else rateDirty = true;
+    }
     const value = changes["myx:mutes:" + account]?.newValue;
     if (area !== "local" || !value) return;
     data.muted = value.muted || [];
@@ -1409,6 +1786,12 @@
   )
     show();
   await resume();
+  setInterval(() => refreshLatest(), 10000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshLatest();
+  });
+  window.addEventListener("online", () => refreshLatest());
+  if (visible) refreshLatest();
   setInterval(() => {
     if (!collecting && readAccount() !== account) refreshAccount();
   }, 1000);

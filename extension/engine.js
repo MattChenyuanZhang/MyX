@@ -156,6 +156,62 @@
       ? Math.max(0, Math.min(100, p))
       : 100 / 11;
   }
+  function activityAccount(p) {
+    return handle(p.kind === "repost" ? p.actor : p.handle);
+  }
+  function accountRate(rules, h, kind) {
+    const value = rules?.accounts?.[handle(h)]?.[kind];
+    return typeof value === "number" && Number.isFinite(value)
+      ? Math.max(0, Math.min(100, value))
+      : 100;
+  }
+  // A seeded random rank per activity keeps samples nested and stable across refreshes.
+  function sampleRank(p, seed) {
+    let hash = 2166136261;
+    for (const c of String(seed) +
+      ":" +
+      activityAccount(p) +
+      ":" +
+      p.kind +
+      ":" +
+      eventKey(p)) {
+      hash ^= c.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    hash ^= hash >>> 16;
+    hash = Math.imul(hash, 0x85ebca6b);
+    hash ^= hash >>> 13;
+    hash = Math.imul(hash, 0xc2b2ae35);
+    hash ^= hash >>> 16;
+    return ((hash >>> 0) / 4294967296) * 100;
+  }
+  function includeActivity(p, rules) {
+    return (
+      sampleRank(p, rules?.seed || "myx") <
+      accountRate(rules, activityAccount(p), p.kind)
+    );
+  }
+  function cleanVideos(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .slice(0, 4)
+      .map((v) => {
+        const src =
+          typeof v?.src === "string" &&
+          /^https:\/\/video\.twimg\.com\//.test(v.src) &&
+          v.src.length < 4096
+            ? v.src
+            : "";
+        const poster =
+          typeof v?.poster === "string" &&
+          /^https:\/\/pbs\.twimg\.com\//.test(v.poster) &&
+          v.poster.length < 4096
+            ? v.poster
+            : "";
+        return { src, poster, gif: v?.gif === true };
+      })
+      .filter((v) => v.src || v.poster);
+  }
   function feed(data, prefs = {}) {
     const following = new Set((data.following || []).map((p) => p.id));
     const known = new Set(
@@ -167,6 +223,7 @@
       (p) =>
         p.followedActor !== false &&
         !isMuted(p, data) &&
+        includeActivity(p, prefs.accountRules) &&
         (prefs.replies !== false || p.kind !== "reply") &&
         (prefs.reposts !== false || p.kind !== "repost"),
     );
@@ -235,6 +292,11 @@
     };
   }
   root.MyXModel = {
+    activityAccount,
+    accountRate,
+    sampleRank,
+    includeActivity,
+    cleanVideos,
     discoveryPercent,
     surfaceForPath,
     mentionParts,

@@ -12,6 +12,30 @@
     typeof s === "string" && /^https:\/\/(?:pbs|abs)\.twimg\.com\//.test(s)
       ? s
       : "";
+  function videosOf(t) {
+    return (t?.legacy?.extended_entities?.media || [])
+      .filter((m) => ["video", "animated_gif"].includes(m.type))
+      .slice(0, 4)
+      .map((m) => {
+        const variant = (m.video_info?.variants || [])
+          .filter(
+            (v) =>
+              v.content_type === "video/mp4" &&
+              typeof v.url === "string" &&
+              /^https:\/\/video\.twimg\.com\//.test(v.url) &&
+              v.url.length < 4096,
+          )
+          .sort(
+            (a, b) => (Number(b.bitrate) || 0) - (Number(a.bitrate) || 0),
+          )[0];
+        return {
+          src: variant?.url || "",
+          poster: https(m.media_url_https),
+          gif: m.type === "animated_gif",
+        };
+      })
+      .filter((v) => v.src || v.poster);
+  }
   function profileOf(u) {
     const h = handleOf(u);
     if (!h) return null;
@@ -106,6 +130,7 @@
       video: (p.legacy.extended_entities?.media || []).some(
         (m) => m.type === "video" || m.type === "animated_gif",
       ),
+      videos: videosOf(p),
       counts: {
         reply: Number(p.legacy.reply_count) || 0,
         repost: Number(p.legacy.retweet_count) || 0,
@@ -146,5 +171,5 @@
     visit(payload, 0);
     return items.slice(0, 500);
   }
-  root.MyXTimeline = { extract, parseItem };
+  root.MyXTimeline = { extract, parseItem, videosOf };
 })(globalThis);

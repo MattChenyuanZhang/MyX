@@ -110,3 +110,45 @@ test("timeline profiles expose public bio and follower counts without copying ac
   assert.equal(p.followingCount, "126");
   assert.equal(p.auth_token, undefined);
 });
+
+test("video extraction retains the highest bitrate native MP4 and poster on reposts", () => {
+  const original = tweet("10", "writer");
+  original.legacy.extended_entities = {
+    media: [
+      {
+        type: "video",
+        media_url_https: "https://pbs.twimg.com/video.jpg",
+        video_info: {
+          variants: [
+            {
+              content_type: "application/x-mpegURL",
+              url: "https://video.twimg.com/a.m3u8",
+            },
+            {
+              content_type: "video/mp4",
+              bitrate: 256000,
+              url: "https://video.twimg.com/small.mp4",
+            },
+            {
+              content_type: "video/mp4",
+              bitrate: 832000,
+              url: "https://video.twimg.com/large.mp4",
+            },
+            {
+              content_type: "video/mp4",
+              bitrate: 9999999,
+              url: "https://evil.test/bad.mp4",
+            },
+          ],
+        },
+      },
+    ],
+  };
+  const rt = tweet("11", "alice");
+  rt.legacy.retweeted_status_result = { result: original };
+  const p = T.extract(response(rt))[0];
+  assert.equal(p.video, true);
+  assert.equal(p.videos[0].src, "https://video.twimg.com/large.mp4");
+  assert.equal(p.videos[0].poster, "https://pbs.twimg.com/video.jpg");
+  assert.equal(p.kind, "repost");
+});
