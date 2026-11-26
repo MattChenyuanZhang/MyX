@@ -333,25 +333,9 @@
     rateHideTimer,
     ratePinned = false,
     rateDirty = false;
-  const rateKinds = { post: "Posts", reply: "Replies", repost: "Reposts" };
   function accountRulesMarkup() {
     const handles = Object.keys(prefs.accountRules?.accounts || {});
-    return `<section class="account-rules"><h3>Account proportions</h3><p class="tiny">Hover the ⚙ at the end of a following activity to choose how often you see posts, replies, and reposts from that account. Settings apply only in MyX.</p>${handles
-      .map(
-        (h) =>
-          `<button class="secondary" data-rate-handle="${esc(h)}">@${esc(h)} · ${Object.keys(
-            rateKinds,
-          )
-            .map(
-              (k) =>
-                rateKinds[k] +
-                " " +
-                M.accountRate(prefs.accountRules, h, k) +
-                "%",
-            )
-            .join(" · ")}</button>`,
-      )
-      .join("")}</section>`;
+    return `<section class="account-rules"><h3>Account proportions</h3><p class="tiny">Hover the ⚙ at the end of a following activity to choose how much you see from that account. One percentage applies to all posts, reposts, and replies.</p>${handles.map((h) => `<button class="secondary" data-rate-handle="${esc(h)}">@${esc(h)} · ${M.accountRate(prefs.accountRules, h)}% visibility</button>`).join("")}</section>`;
   }
   function closeRates() {
     clearTimeout(rateHideTimer);
@@ -373,16 +357,7 @@
     hidePreview();
     rateHandle = h;
     rateAnchor = button;
-    rateCard.innerHTML = `<h3>Show less or more from @${esc(h)}</h3><p class="tiny">Each percentage is the chance of including an activity. Random choices stay consistent across refreshes.</p>${Object.keys(
-      rateKinds,
-    )
-      .map(
-        (k) =>
-          `<label for="rate-${k}">${rateKinds[k]}<output id="rate-output-${k}">${M.accountRate(prefs.accountRules, h, k)}%</output></label><input id="rate-${k}" type="range" min="0" max="100" step="1" data-rate-kind="${k}" aria-label="${rateKinds[k]} from @${esc(h)}" value="${M.accountRate(prefs.accountRules, h, k)}">`,
-      )
-      .join(
-        "",
-      )}<button class="secondary" id="reset-account-rates">Reset to 100%</button> <button class="secondary" id="close-account-rates">Done</button><p class="tiny" id="rate-save-status">Saved automatically; changes apply when you close this window.</p>`;
+    rateCard.innerHTML = `<h3>Show activity from @${esc(h)}</h3><p class="tiny">One percentage for this account's posts, reposts, and replies.</p><label for="rate-all">Visibility<output id="rate-output-all">${M.accountRate(prefs.accountRules, h)}%</output></label><input id="rate-all" type="range" min="0" max="100" step="1" data-rate-kind="all" aria-label="Activity visibility from @${esc(h)}" value="${M.accountRate(prefs.accountRules, h)}"><div class="mix-endpoints"><span>None</span><span>All</span></div><p class="tiny">Each activity is randomly included at this chance. Choices stay consistent across refreshes.</p><button class="secondary" id="reset-account-rates">Reset to 100%</button> <button class="secondary" id="close-account-rates">Done</button><p class="tiny" id="rate-save-status">Saved automatically; changes apply when you close this window.</p>`;
     rateCard.hidden = false;
     const b = button.getBoundingClientRect(),
       c = rateCard.getBoundingClientRect();
@@ -398,12 +373,7 @@
     prefs.accountRules ||= { seed: owner, accounts: {} };
     prefs.accountRules.accounts ||= {};
     Object.defineProperty(prefs.accountRules.accounts, h, {
-      value: {
-        ...(Object.hasOwn(prefs.accountRules.accounts, h)
-          ? prefs.accountRules.accounts[h]
-          : {}),
-        [kind]: value,
-      },
+      value: { all: value },
       enumerable: true,
       configurable: true,
       writable: true,
@@ -478,7 +448,7 @@
     const button = e.target.closest("[data-rate-handle]");
     if (button) {
       openRates(button, true);
-      R("#rate-post").focus();
+      R("#rate-all").focus();
     } else if (!rateCard.contains(e.target)) closeRates();
   });
   let refreshGeneration = 0;
@@ -1409,11 +1379,9 @@
       return;
     }
     if (b.id === "reset-account-rates") {
-      for (const kind of Object.keys(rateKinds)) {
-        R("#rate-" + kind).value = 100;
-        R("#rate-output-" + kind).textContent = "100%";
-        await setRate(kind, 100);
-      }
+      R("#rate-all").value = 100;
+      R("#rate-output-all").textContent = "100%";
+      await setRate("all", 100);
       return;
     }
     if (b.id === "stop-collection") {

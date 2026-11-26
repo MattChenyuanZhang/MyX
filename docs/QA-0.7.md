@@ -1,6 +1,6 @@
 # MyX 0.7.0 verification
 
-Local checks completed on 2026-11-25. The initial 0.7.0 runtime passed live refresh and video checks. Follow-up post-card navigation and popup-retention changes are verified locally and need a final extension reload. The requested single-bar account control is awaiting clarification. Keep the preceding public download latest until the final live check finishes.
+Local checks completed on 2026-11-25. The initial 0.7.0 runtime passed live refresh and video checks. Follow-up post-card navigation and popup-retention changes are verified locally and need a final extension reload. The requested single-bar control was clarified on 2026-11-26 as one overall visibility percentage; see QA-0.7.1.md. Keep the preceding public download latest until the final live check finishes.
 
 ## Debug report
 
@@ -39,7 +39,7 @@ Following activity has a final settings gear, opened by pointer hover, keyboard 
 - Found the hover timer could dismiss a clicked popup while keyboard users tried to adjust a slider. Clicking now pins it; hovering another account does not replace a pinned popup; Done, Escape and outside clicks close it. In the local browser, the popup stayed visible across independent work and its slider remained usable afterward.
 - Added whole-card post navigation after the user's follow-up request. Local mouse-click and Enter tests both opened a full native-shaped thread with its two test replies. Video/action/profile controls and selected text are excluded from card navigation.
 - Chrome retained the earlier installed content script even after refreshing the X tab, so these follow-up changes require an extension reload before final live verification.
-- The user then requested a single account bar. Clarification is pending: either one three-part post/repost/reply mix totaling 100%, or one shared 0–100% visibility percentage for all activity. No interpretation has been implemented without their answer.
+- The user requested one shared 0–100% visibility percentage for all activity. Implemented in 0.7.1; see QA-0.7.1.md for final verification.
 
 ## Limits
 

@@ -10,21 +10,19 @@ const post = (id, kind = "post", h = "alice") => ({
   handle: h,
   actor: kind === "repost" ? "reposter" : null,
 });
-test("per-account percentages sample each activity type independently, stably, and before discovery spacing", () => {
+test("one account percentage samples posts, replies and reposts equally and stably", () => {
   const following = Array.from({ length: 3000 }, (_, i) =>
     post(i + 1, ["post", "reply", "repost"][i % 3]),
   );
   const accountRules = {
     seed: "fixed-random-seed",
-    accounts: { alice: { post: 0, reply: 50 }, reposter: { repost: 100 } },
+    accounts: { alice: { all: 50 }, reposter: { all: 50 } },
   };
   const out = M.feed({ following }, { accountRules, discovery: false });
-  assert.equal(out.filter((p) => p.kind === "post").length, 0);
-  assert.equal(out.filter((p) => p.kind === "repost").length, 1000);
-  assert.ok(
-    out.filter((p) => p.kind === "reply").length > 430 &&
-      out.filter((p) => p.kind === "reply").length < 570,
-  );
+  for (const kind of ["post", "reply", "repost"]) {
+    const n = out.filter((p) => p.kind === kind).length;
+    assert.ok(n > 430 && n < 570, kind + " is sampled at approximately 50%");
+  }
   assert.deepEqual(
     out,
     M.feed({ following }, { accountRules, discovery: false }),
@@ -34,7 +32,7 @@ test("per-account percentages sample each activity type independently, stably, a
     {
       accountRules: {
         ...accountRules,
-        accounts: { alice: { reply: 25, post: 0 }, reposter: { repost: 100 } },
+        accounts: { alice: { all: 25 }, reposter: { all: 25 } },
       },
       discovery: false,
     },
@@ -46,7 +44,7 @@ test("per-account percentages sample each activity type independently, stably, a
   assert.equal(
     M.feed(
       { following: [post(1, "repost", "original")] },
-      { accountRules: { seed: "s", accounts: { original: { repost: 0 } } } },
+      { accountRules: { seed: "s", accounts: { original: { all: 0 } } } },
     ).length,
     1,
   );
@@ -54,11 +52,11 @@ test("per-account percentages sample each activity type independently, stably, a
 test("0 and 100 endpoints, actor-specific reposts, default rates, and duplicate stability", () => {
   const p = post(1);
   assert.equal(
-    M.includeActivity(p, { seed: "s", accounts: { alice: { post: 0 } } }),
+    M.includeActivity(p, { seed: "s", accounts: { alice: { all: 0 } } }),
     false,
   );
   assert.equal(
-    M.includeActivity(p, { seed: "s", accounts: { alice: { post: 100 } } }),
+    M.includeActivity(p, { seed: "s", accounts: { alice: { all: 100 } } }),
     true,
   );
   assert.equal(M.accountRate({}, "alice", "post"), 100);
@@ -83,4 +81,22 @@ test("video sources only accept X media HTTPS origins and reject injected URLs",
   ])
     assert.deepEqual(M.cleanVideos([{ src }]), []);
   assert.deepEqual(M.cleanVideos("invalid"), []);
+});
+
+test("one visibility value overrides all legacy per-type controls and migrates their average", () => {
+  const rules = {
+    seed: "seed",
+    accounts: { alice: { post: 0, reply: 50, repost: 100 } },
+  };
+  assert.equal(M.accountRate(rules, "alice"), 50);
+  rules.accounts.alice.all = 20;
+  assert.equal(M.accountRate(rules, "alice"), 20);
+  for (const kind of ["post", "reply", "repost"]) {
+    const activity = post(123, kind, "alice");
+    if (kind === "repost") activity.actor = "alice";
+    assert.equal(
+      M.includeActivity(activity, rules),
+      M.sampleRank(activity, "seed") < 20,
+    );
+  }
 });

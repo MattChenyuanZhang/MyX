@@ -25,6 +25,19 @@ window.chrome = {
         const value = JSON.parse(
           localStorage.getItem(key) || '{"seed":"fixture-seed","accounts":{}}',
         );
+        for (const [h, old] of Object.entries(value.accounts)) {
+          const all =
+            old.all ??
+            Math.round(
+              (["post", "reply", "repost"].reduce(
+                (sum, k) => sum + (old[k] ?? 100),
+                0,
+              ) /
+                3) *
+                10,
+            ) / 10;
+          value.accounts[h] = { all };
+        }
         if (m.type === "RULE_SET") {
           value.accounts[m.handle] = {
             ...value.accounts[m.handle],

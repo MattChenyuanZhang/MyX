@@ -123,7 +123,7 @@ test("account proportions persist with a stable private seed; concurrent writes 
         type: "RULE_SET",
         account: "alice",
         handle: "writer" + i,
-        kind: "post",
+        kind: "all",
         percent: i * 10,
       }),
     ),
@@ -131,7 +131,7 @@ test("account proportions persist with a stable private seed; concurrent writes 
   const rules = await w.send({ type: "RULES_GET", account: "alice" }, 2);
   assert.equal(rules.seed, first.seed);
   assert.equal(Object.keys(rules.accounts).length, 8);
-  assert.equal(rules.accounts.writer7.post, 70);
+  assert.equal(rules.accounts.writer7.all, 70);
   assert.notEqual(
     (await w.send({ type: "RULES_GET", account: "bob" })).seed,
     first.seed,
@@ -142,7 +142,7 @@ test("account proportions persist with a stable private seed; concurrent writes 
         type: "RULE_SET",
         account: "alice",
         handle: "writer0",
-        kind: "post",
+        kind: "all",
         percent,
       }),
       null,
@@ -151,7 +151,7 @@ test("account proportions persist with a stable private seed; concurrent writes 
     type: "RULE_SET",
     account: "alice",
     handle: "__proto__",
-    kind: "reply",
+    kind: "all",
     percent: 25,
   });
   const special = await w.send({ type: "RULES_GET", account: "alice" });
@@ -161,7 +161,7 @@ test("account proportions persist with a stable private seed; concurrent writes 
     type: "RULE_SET",
     account: "alice",
     handle: "writer0",
-    kind: "post",
+    kind: "all",
     percent: 100,
   });
   assert.equal(
@@ -187,4 +187,16 @@ test("simultaneous refresh requests are bounded and cancellation only closes the
   assert.ok(results.every((r) => r.error));
   assert.equal(w.removed.length, 1);
   assert.equal(w.timers.size, 0);
+});
+
+test("legacy three-slider rules migrate to one overall rate without changing the seed", async () => {
+  const w = worker();
+  w.records["myx:rules:alice"] = {
+    seed: "keep-this-seed",
+    accounts: { writer: { post: 0, reply: 50, repost: 100 } },
+  };
+  const migrated = await w.send({ type: "RULES_GET", account: "alice" });
+  assert.equal(migrated.seed, "keep-this-seed");
+  assert.equal(migrated.accounts.writer.all, 50);
+  assert.equal(migrated.accounts.writer.post, undefined);
 });

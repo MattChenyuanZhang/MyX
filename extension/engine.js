@@ -159,11 +159,25 @@
   function activityAccount(p) {
     return handle(p.kind === "repost" ? p.actor : p.handle);
   }
-  function accountRate(rules, h, kind) {
-    const value = rules?.accounts?.[handle(h)]?.[kind];
-    return typeof value === "number" && Number.isFinite(value)
-      ? Math.max(0, Math.min(100, value))
-      : 100;
+  function accountRate(rules, h) {
+    const rule = rules?.accounts?.[handle(h)];
+    const percent = (value) =>
+      typeof value === "number" && Number.isFinite(value)
+        ? Math.max(0, Math.min(100, value))
+        : 100;
+    if (typeof rule?.all === "number" && Number.isFinite(rule.all))
+      return percent(rule.all);
+    // Consolidate the unreleased three-slider settings into one visibility chance.
+    return (
+      Math.round(
+        (["post", "reply", "repost"].reduce(
+          (sum, k) => sum + percent(rule?.[k]),
+          0,
+        ) /
+          3) *
+          10,
+      ) / 10
+    );
   }
   // A seeded random rank per activity keeps samples nested and stable across refreshes.
   function sampleRank(p, seed) {
@@ -188,7 +202,7 @@
   function includeActivity(p, rules) {
     return (
       sampleRank(p, rules?.seed || "myx") <
-      accountRate(rules, activityAccount(p), p.kind)
+      accountRate(rules, activityAccount(p))
     );
   }
   function cleanVideos(raw) {

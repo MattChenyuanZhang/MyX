@@ -8,7 +8,7 @@ No GitHub account, OpenAI account, API key, or command line is required.
 2. **Load it in Chrome.** Paste `chrome://extensions` into Chrome’s address bar. Turn on **Developer mode**, choose **Load unpacked**, and select that extracted folder.
 3. **Open X.** Sign in at [x.com](https://x.com/home#myx), refresh the tab, and click **MyX** in the lower right or in Chrome’s Extensions menu.
 
-MyX loads fresh Following posts when opened and checks once per minute while you read Home. Use ↻ to refresh immediately, and **Feed sources → Collect For You** for discovery. Hover a following activity’s ⚙ to adjust that account’s posts, replies and reposts separately. Each person uses their own X session. In **Feed settings**, drag **Discovery share** to choose the target percentage of discovery posts (0–100%). The default is 10 following + 1 discovery, and the choice is saved per X account. Discovery requires eligible posts collected from your own For You feed.
+MyX loads fresh Following posts when opened and checks once per minute while you read Home. Use ↻ to refresh immediately, and **Feed sources → Collect For You** for discovery. Hover a following activity’s ⚙ to set one visibility percentage for all that account’s posts, reposts and replies. Each person uses their own X session. In **Feed settings**, drag **Discovery share** to choose the target percentage of discovery posts (0–100%). The default is 10 following + 1 discovery, and the choice is saved per X account. Discovery requires eligible posts collected from your own For You feed.
 
 Open `START-HERE.html` inside the download for a browser-readable guide with a button to copy the extensions address.
 

@@ -22,7 +22,7 @@ Discovery comes from your own X For You feed. MyX spaces eligible recommendation
 
 ## Account proportions and videos
 
-Hover or click the **⚙ at the end of a following activity** to set separate 0–100% inclusion chances for that account's posts, replies and reposts. A repost uses the followed reposter's settings, not the original author's. Each activity receives a seeded random rank; refreshes keep the same selection, lowering a percentage removes a subset, and 0%/100% mean none/all. Percentages are probabilities, not exact quotas for a small batch. Global mute and activity filters still apply first. Choices persist locally per signed-in X account and synchronize between MyX tabs. **Feed settings → Account proportions** lets you restore accounts even when all their activity is hidden.
+Hover or click the **⚙ at the end of a following activity** to set one 0–100% visibility percentage for that account. The same percentage applies to all their posts, reposts and replies. For example, 40% gives each activity a 40% chance of appearing. A repost uses the followed reposter's setting, not the original author's. Seeded random ranks keep the selection stable across refreshes; lowering the percentage removes a subset, and 0%/100% mean none/all. Percentages are probabilities, not exact quotas for a small batch. Global mute and activity filters still apply. Choices persist locally per signed-in X account and synchronize between MyX tabs. **Feed settings → Account proportions** lets you restore accounts even when all their activity is hidden.
 
 Videos with MP4 variants supplied by X play inside feed cards with native controls, sound and fullscreen. No video is automatically downloaded or played by MyX. For stream-only, unavailable or expired sources, **Open original video player** opens X's native post/player inside the MyX shell.
 
@@ -52,7 +52,7 @@ MyX imports the native X muted-account list before collection (refreshed when mo
 
 Discovery is taken only from the actual For You tab. Unknown relationship status is excluded until verified. Authors of captured following posts or reposts and posts already present in Following are excluded. Verification is a snapshot: following someone later in another tab may make the relationship stale; recollect/clear to refresh. X can change its UI, language, policies, or session behavior. English X UI is currently required.
 
-Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.7.md` for refresh, video and account-proportion verification, `docs/QA-0.6.md` for feed-mix checks, `docs/QA-0.5.md` for preview, navigation and download checks and `docs/QA-0.4.md` for startup/UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
+Read-only collection and simulated-provider tests do not prove that every native action succeeds on X. See `docs/QA-0.7.1.md` for final single-slider/conversation checks and `docs/QA-0.7.md` for refresh, video and account-proportion verification, `docs/QA-0.6.md` for feed-mix checks, `docs/QA-0.5.md` for preview, navigation and download checks and `docs/QA-0.4.md` for startup/UI checks and `docs/QA-0.3.md` for activity/data verification (`docs/QA.md` records the earlier build). No claim of full end-to-end parity should be made while live checks remain incomplete.
 
 ## Privacy
 

@@ -67,24 +67,39 @@ async function rulesFor(account, change) {
         seed: crypto.randomUUID(),
         accounts: {},
       };
+      for (const [h, old] of Object.entries(value.accounts)) {
+        const percent = (n) =>
+          typeof n === "number" && Number.isFinite(n)
+            ? Math.max(0, Math.min(100, n))
+            : 100;
+        const all =
+          typeof old?.all === "number" && Number.isFinite(old.all)
+            ? percent(old.all)
+            : Math.round(
+                (["post", "reply", "repost"].reduce(
+                  (sum, kind) => sum + percent(old?.[kind]),
+                  0,
+                ) /
+                  3) *
+                  10,
+              ) / 10;
+        if (all === 100) delete value.accounts[h];
+        else
+          Object.defineProperty(value.accounts, h, {
+            value: { all },
+            enumerable: true,
+            configurable: true,
+            writable: true,
+          });
+      }
       if (change) {
         Object.defineProperty(value.accounts, change.handle, {
-          value: {
-            ...(Object.hasOwn(value.accounts, change.handle)
-              ? value.accounts[change.handle]
-              : {}),
-            [change.kind]: change.percent,
-          },
+          value: { all: change.percent },
           enumerable: true,
           configurable: true,
           writable: true,
         });
-        if (
-          ["post", "reply", "repost"].every(
-            (kind) => (value.accounts[change.handle][kind] ?? 100) === 100,
-          )
-        )
-          delete value.accounts[change.handle];
+        if (change.percent === 100) delete value.accounts[change.handle];
       }
       await chrome.storage.local.set({ [k]: value });
       return value;
@@ -207,7 +222,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       account &&
       typeof m.handle === "string" &&
       /^[a-z0-9_]{1,15}$/.test(m.handle) &&
-      ["post", "reply", "repost"].includes(m.kind) &&
+      m.kind === "all" &&
       typeof m.percent === "number" &&
       Number.isFinite(m.percent) &&
       m.percent >= 0 &&
