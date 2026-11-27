@@ -135,6 +135,7 @@
         reply: Number(p.legacy.reply_count) || 0,
         repost: Number(p.legacy.retweet_count) || 0,
         like: Number(p.legacy.favorite_count) || 0,
+        views: Number(p.views?.count) || 0,
       },
       liked: p.legacy.favorited === true,
       bookmarked: p.legacy.bookmarked === true,

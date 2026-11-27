@@ -193,6 +193,10 @@
         like:
           $('[data-testid="like"],[data-testid="unlike"]', article)
             ?.textContent || "",
+        views:
+          $('a[href$="/analytics"]', article)?.textContent ||
+          metadata?.counts?.views ||
+          "",
       },
       promoted:
         !!$('[data-testid="placementTracking"]', article) ||
@@ -232,9 +236,142 @@
   const { host, root } = globalThis.MyXShell.mount();
   host.dataset.initialized = "true";
   if (host.style.display === "block") document.body.inert = true;
-  let restoreReaderScroll = false;
+  let restoreReaderScroll = false,
+    readerSnapshot = null,
+    anchorRestore = null,
+    resumingReader = false;
   let view = "home";
   const R = (s) => root.querySelector(s);
+
+  function checkpointReader() {
+    if (surface !== "feed" || !account) return null;
+    const app = R(".app"),
+      bounds = app.getBoundingClientRect(),
+      sticky = R(".top").getBoundingClientRect().bottom;
+    const cards = [...root.querySelectorAll("#feed article[data-event]")];
+    const anchor = cards.find(
+      (el) => el.getBoundingClientRect().bottom > sticky,
+    );
+    const checkpoint = {
+      account,
+      view,
+      scroll: app.scrollTop,
+      anchorKey: anchor?.dataset.event || "",
+      anchorTop: anchor ? anchor.getBoundingClientRect().top - bounds.top : 0,
+      accountSearch: R(".search").value,
+      prefs: Object.fromEntries(
+        [
+          "tab",
+          "order",
+          "replies",
+          "reposts",
+          "discovery",
+          "discoveryPercent",
+        ].map((k) => [k, prefs[k]]),
+      ),
+      rows: cards.map((el) => ({
+        key: el.dataset.event,
+        discovery: !!el.querySelector(".context.discovery"),
+      })),
+    };
+    prefs.readerReturn = checkpoint;
+    history.replaceState(
+      { ...history.state, __myxReader: checkpoint },
+      "",
+      location.href,
+    );
+    return checkpoint;
+  }
+  function releaseReaderSnapshot() {
+    readerSnapshot = null;
+    anchorRestore = null;
+    const state = { ...history.state };
+    delete state.__myxReader;
+    history.replaceState(state, "", location.href);
+  }
+  function restoreReadingPosition() {
+    const state = anchorRestore;
+    if (!state || surface !== "feed") return;
+    const app = R(".app");
+    app.scrollTop = state.scroll;
+    const anchor = [...root.querySelectorAll("#feed article[data-event]")].find(
+      (el) => el.dataset.event === state.anchorKey,
+    );
+    if (anchor)
+      app.scrollTop +=
+        anchor.getBoundingClientRect().top -
+        app.getBoundingClientRect().top -
+        state.anchorTop;
+  }
+  function restoreReader(raw) {
+    const checkpoint = M.readerCheckpoint(raw, account);
+    if (!checkpoint) return false;
+    readerSnapshot = checkpoint;
+    anchorRestore = checkpoint;
+    surface = "feed";
+    view = checkpoint.view;
+    for (const k of ["replies", "reposts", "discovery"])
+      if (typeof checkpoint.prefs?.[k] === "boolean")
+        prefs[k] = checkpoint.prefs[k];
+    if (["all", "reply", "repost"].includes(checkpoint.prefs?.tab))
+      prefs.tab = checkpoint.prefs.tab;
+    if (["activity", "post-time"].includes(checkpoint.prefs?.order))
+      prefs.order = checkpoint.prefs.order;
+    if (Number.isFinite(checkpoint.prefs?.discoveryPercent))
+      prefs.discoveryPercent = checkpoint.prefs.discoveryPercent;
+    prefs.readerScroll = checkpoint.scroll;
+    R(".search").value =
+      typeof checkpoint.accountSearch === "string"
+        ? checkpoint.accountSearch.slice(0, 500)
+        : "";
+    restoreReaderScroll = true;
+    history.replaceState(
+      { ...history.state, __myxReader: checkpoint },
+      "",
+      location.href,
+    );
+    show();
+    restoreReadingPosition();
+    requestAnimationFrame(restoreReadingPosition);
+    save();
+    return true;
+  }
+  new ResizeObserver(() => {
+    if (anchorRestore) restoreReadingPosition();
+  }).observe(R("#feed"));
+  for (const event of ["wheel", "touchmove", "pointerdown", "keydown"])
+    root.addEventListener(
+      event,
+      () => {
+        anchorRestore = null;
+      },
+      { passive: true },
+    );
+  window.addEventListener("popstate", () => {
+    if (modelReady && !resumingReader && history.state?.__myxReader)
+      restoreReader(history.state.__myxReader);
+  });
+  window.addEventListener("pageshow", async (e) => {
+    if (!e.persisted || !modelReady || !history.state?.__myxReader) return;
+    // A page restored from bfcache owns an older in-memory collection. Read the
+    // latest tab cache before restoring/saving, or updates received away are lost.
+    resumingReader = true;
+    const checkpoint = history.state.__myxReader,
+      owner = account;
+    try {
+      const latest = await msg({ type: "GET" });
+      if (account !== owner || readAccount() !== owner) return;
+      if (latest?.data?.account === owner) {
+        data = latest.data;
+        prefs = { ...prefs, ...latest.prefs, search: "" };
+        pending = latest.pending;
+      }
+      restoreReader(checkpoint);
+    } finally {
+      resumingReader = false;
+    }
+  });
+
   let timer;
   function toast(t) {
     R(".toast").textContent = t;
@@ -294,6 +431,7 @@
     return `<section class="mix-control" aria-labelledby="mix-title"><h3 id="mix-title">Your feed mix</h3><label for="discovery-ratio">Discovery share</label><output id="mix-output" for="discovery-ratio" aria-live="polite"></output><input id="discovery-ratio" type="range" min="0" max="100" step="any" value="${M.discoveryPercent(prefs)}" aria-label="Discovery percentage"><div class="mix-endpoints"><span>Following only</span><span>Discovery only</span></div><div id="mix-pattern" aria-hidden="true"></div><p id="mix-hint"></p><button class="secondary" id="reset-mix">Reset to 10 following + 1 discovery</button><p class="tiny">This is a target mix for the main Following feed. Replies and Reposts tabs stay focused on those activities. If eligible discovery posts run out, MyX shows the remaining following posts without repeats. Collect For You to replenish discovery.</p></section>`;
   }
   function saveMix() {
+    releaseReaderSnapshot();
     save();
     msg({
       type: "MIX_SET",
@@ -378,6 +516,7 @@
       configurable: true,
       writable: true,
     });
+    releaseReaderSnapshot();
     rateDirty = true;
     const result = await msg({
       type: "RULE_SET",
@@ -470,8 +609,10 @@
     } else render();
   }
   async function refreshLatest(manual = false) {
+    if (manual) releaseReaderSnapshot();
     if (
       refreshing ||
+      resumingReader ||
       collecting ||
       !account ||
       readAccount() !== account ||
@@ -613,6 +754,7 @@
   }
   function hidePreview() {
     clearTimeout(previewTimer);
+    previewTimer = null;
     clearTimeout(previewHideTimer);
     profileCard.hidden = true;
     previewAnchor = null;
@@ -637,62 +779,65 @@
     profileCard.hidden = false;
     positionPreview();
   }
-  async function loadPreview(link, h) {
-    previewAnchor = link;
-    previewHandle = h;
-    const existing =
-      globalThis.MyXProfile.read(document, h) || data.profiles?.[h];
+  function knownProfile(h) {
+    const P = globalThis.MyXProfile;
+    const cached = P.combine(data.profiles?.[h], P.read(document, h), true);
     const author = [...data.following, ...data.forYou].find(
       (p) => p.handle === h,
     );
     const actor = [...data.following, ...data.forYou].find(
       (p) => p.actor === h,
     );
-    const base = existing || {
-      handle: h,
-      name: author?.name || actor?.context?.replace(/\s+reposted.*$/i, "") || h,
-      avatar: author?.avatar || "",
-    };
-    if (
-      existing &&
-      (existing.followersCount || existing.followingCount) &&
-      Date.now() - existing.capturedAt < 300000
-    ) {
-      drawPreview(existing);
-      return;
-    }
-    drawPreview(base, true);
-    const owner = account,
-      requestKey = owner + ":" + h;
-    if (!profileRequests.has(requestKey))
-      profileRequests.set(
-        requestKey,
-        msg({ type: "PROFILE_GET", account: owner, handle: h }),
-      );
-    const response = await profileRequests.get(requestKey);
-    profileRequests.delete(requestKey);
-    if (account !== owner || readAccount() !== owner) return;
-    const profile = globalThis.MyXProfile.clean(
-      response?.profile && {
-        ...response.profile,
-        avatar: response.profile.avatar || base.avatar,
-      },
+    return (
+      cached || {
+        handle: h,
+        name:
+          author?.name || actor?.context?.replace(/\s+reposted.*$/i, "") || h,
+        avatar: author?.avatar || "",
+      }
     );
-    if (profile?.handle === h) {
-      data.profiles ||= {};
-      delete data.profiles[h];
-      data.profiles[h] = profile;
-      const keys = Object.keys(data.profiles);
-      keys
-        .slice(0, Math.max(0, keys.length - 100))
-        .forEach((k) => delete data.profiles[k]);
-      await save();
+  }
+  function requestPreview(h, base) {
+    const owner = account,
+      key = owner + ":" + h;
+    if (!profileRequests.has(key)) {
+      const request = (async () => {
+        const response = await msg({
+          type: "PROFILE_GET",
+          account: owner,
+          handle: h,
+          avatar: base.avatar,
+        });
+        if (account !== owner || readAccount() !== owner) return null;
+        const P = globalThis.MyXProfile;
+        const result = P.clean(response?.profile);
+        if (result?.handle !== h) return null;
+        const profile = P.combine(base, result);
+        data.profiles ||= {};
+        delete data.profiles[h];
+        data.profiles[h] = profile;
+        Object.keys(data.profiles)
+          .slice(0, Math.max(0, Object.keys(data.profiles).length - 200))
+          .forEach((k) => delete data.profiles[k]);
+        await save();
+        return profile;
+      })().finally(() => profileRequests.delete(key));
+      profileRequests.set(key, request);
     }
-    if (previewHandle === h)
+    return profileRequests.get(key);
+  }
+  async function loadPreview(link, h, base, request) {
+    if (previewAnchor !== link || previewHandle !== h || !link.isConnected)
+      return;
+    const details = globalThis.MyXProfile.hasDetails(base);
+    drawPreview(base, !details);
+    if (!request) return;
+    const profile = await request;
+    if (previewAnchor === link && previewHandle === h)
       drawPreview(
         profile || base,
         false,
-        profile
+        profile || details
           ? ""
           : "Profile details unavailable. Open the profile to view more.",
       );
@@ -703,10 +848,29 @@
       h = profileHandle(a);
     if (!h || collecting || !account) return;
     clearTimeout(previewHideTimer);
-    if (previewAnchor === a && previewHandle === h && !profileCard.hidden)
+    if (
+      previewAnchor === a &&
+      previewHandle === h &&
+      (!profileCard.hidden || previewTimer)
+    )
       return;
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => loadPreview(a, h), 350);
+    previewAnchor = a;
+    previewHandle = h;
+    const base = knownProfile(h),
+      details = globalThis.MyXProfile.hasDetails(base);
+    const request =
+      details && Date.now() - base.capturedAt < 1800000
+        ? null
+        : requestPreview(h, base);
+    // Begin a cold lookup on pointer intent, before the short display dwell.
+    previewTimer = setTimeout(
+      () => {
+        previewTimer = null;
+        loadPreview(a, h, base, request);
+      },
+      details ? 0 : 120,
+    );
   }
   root.addEventListener("pointerover", schedulePreview);
   root.addEventListener("focusin", schedulePreview);
@@ -719,6 +883,7 @@
     )
       return;
     clearTimeout(previewTimer);
+    previewTimer = null;
     previewHideTimer = setTimeout(hidePreview, 250);
   }
   root.addEventListener("pointerout", leavePreview);
@@ -733,19 +898,65 @@
   root.addEventListener("keydown", (e) => {
     if (e.key === "Escape") hidePreview();
   });
-  R(".app").addEventListener("scroll", hidePreview, { passive: true });
+  let readerScrollSave;
+  R(".app").addEventListener(
+    "scroll",
+    () => {
+      hidePreview();
+      clearTimeout(readerScrollSave);
+      if (readerSnapshot && !anchorRestore && surface === "feed")
+        readerScrollSave = setTimeout(() => {
+          checkpointReader();
+          save();
+        }, 300);
+    },
+    { passive: true },
+  );
   window.addEventListener("resize", hidePreview);
-  const icons = {
-    reply: "M21 11a9 9 0 0 1-9 9H4l2-4a9 9 0 1 1 15-5",
-    repost: "M4 8h14l-4-4M20 16H6l4 4M18 8v5M6 16v-5",
-    like: "M20 5a5 5 0 0 0-8 1 5 5 0 0 0-8-1c-4 5 3 10 8 15 5-5 12-10 8-15",
-    bookmark: "M6 3h12v18l-6-4-6 4z",
-    share: "M12 16V3m-4 4 4-4 4 4M5 13v8h14v-8",
-    thread: "M4 5h16M4 12h12M4 19h8",
-    quote: "M4 4h6v8H4zM14 4h6v8h-6zM10 12q0 6-6 7M20 12q0 6-6 7",
-  };
-  function icon(k) {
-    return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[k] || icons.reply}"/></svg>`;
+  function icon(kind) {
+    return globalThis.MyXIcons.svg(kind);
+  }
+  function actionsMarkup(p) {
+    const settings =
+      !p.discovery && M.validHandle(M.activityAccount(p))
+        ? `<span class="action-slot trailing"><button class="account-gear" data-rate-handle="${esc(M.activityAccount(p))}" aria-label="Feed settings for @${esc(M.activityAccount(p))}" title="Adjust account visibility"><span class="action-icon">${icon("settings")}</span></button></span>`
+        : "";
+    return `<div class="actions">${[
+      "reply",
+      "repost",
+      "like",
+      "views",
+      "bookmark",
+      "share",
+    ]
+      .map((kind) => {
+        const selected =
+          kind === "like"
+            ? p.liked
+            : kind === "bookmark"
+              ? p.bookmarked
+              : kind === "repost"
+                ? p.reposted
+                : false;
+        const label =
+          kind === "like" && p.liked
+            ? "Unlike"
+            : kind === "bookmark" && p.bookmarked
+              ? "Remove bookmark"
+              : kind === "views"
+                ? "View post analytics"
+                : kind === "share"
+                  ? "Share post"
+                  : kind[0].toUpperCase() + kind.slice(1);
+        const glyph =
+          kind === "like" && selected
+            ? "likeFilled"
+            : kind === "bookmark" && selected
+              ? "bookmarkFilled"
+              : kind;
+        return `<span class="action-slot ${["bookmark", "share"].includes(kind) ? "trailing" : "primary-action"}"><button data-act="${kind}" class="${kind === "like" && selected ? "liked" : selected ? "selected" : ""}" aria-label="${label}" title="${label}"><span class="action-icon">${icon(glyph)}</span>${!["bookmark", "share"].includes(kind) ? `<span class="count">${esc(M.formatCount(p.counts?.[kind]))}</span>` : ""}</button></span>`;
+      })
+      .join("")}${settings}</div>`;
   }
   function linkedText(text) {
     return M.mentionParts(text)
@@ -761,7 +972,7 @@
       p.context ||
       (M.validHandle(p.replyTo) ? "Replying to @" + p.replyTo : "");
     let date = new Date(Number.isFinite(p.eventTime) ? p.eventTime : p.time);
-    return `<article class="post" tabindex="0" data-open-thread="${esc(p.url)}" aria-label="Open post by @${esc(p.handle)} and replies" data-post="${p.id}" data-event="${esc(M.eventKey(p))}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${videoMarkup(p)}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}<div class="actions">${["reply", "repost", "like", "bookmark", "quote", "share", "thread"].map((k) => `<button data-act="${k}" class="${k === "like" && p.liked ? "liked" : (k === "bookmark" && p.bookmarked) || (k === "repost" && p.reposted) ? "selected" : ""}" aria-label="${esc(k === "like" && p.liked ? "Unlike" : k === "bookmark" && p.bookmarked ? "Remove bookmark" : k === "thread" ? "Open conversation" : k[0].toUpperCase() + k.slice(1))}"><span class="action-icon">${icon(k)}</span><span class="count">${esc(p.counts?.[k] || "")}</span></button>`).join("")}</div>${!p.discovery && M.validHandle(M.activityAccount(p)) ? `<button class="account-gear" data-rate-handle="${esc(M.activityAccount(p))}" aria-label="Feed settings for @${esc(M.activityAccount(p))}" title="Adjust account proportions">⚙</button>` : ""}</div></div></article>`;
+    return `<article class="post" tabindex="0" data-open-thread="${esc(p.url)}" aria-label="Open post by @${esc(p.handle)} and replies" data-post="${p.id}" data-event="${esc(M.eventKey(p))}">${p.discovery ? '<div class="context discovery">✧ From your For You · not following</div>' : contextText ? `<div class="context">${M.validHandle(p.actor) ? `<a href="https://x.com/${esc(p.actor)}">${esc(contextText)}</a>` : linkedText(contextText)}</div>` : ""}<div class="row"><a class="avatar" href="https://x.com/${esc(p.handle)}">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : esc(p.name[0])}</a><div class="body"><div class="by"><a href="https://x.com/${esc(p.handle)}"><strong>${esc(p.name)}</strong></a><a class="meta" href="https://x.com/${esc(p.handle)}">@${esc(p.handle)}</a><button class="mute" data-mute="${esc(p.handle)}" aria-label="Mute @${esc(p.handle)} in MyX">Mute</button><a class="meta" href="${p.url}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))} · ${esc(date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</a></div><div class="text">${linkedText(p.text || "Open this post to view its content on X.")}</div>${p.photos?.length ? `<div class="media">${p.photos.map((i) => `<a href="${p.url}"><img src="${esc(i.url)}" alt="${esc(i.alt)}" loading="lazy"></a>`).join("")}</div>` : ""}${videoMarkup(p)}${p.kind === "repost" ? `<div class="tiny">${Number.isFinite(p.eventTime) ? "Reposted at the time shown · original post " + esc(new Date(p.time).toLocaleString()) : "Repost activity time unavailable · kept in X’s Following order."}</div>` : ""}${actionsMarkup(p)}</div></div></article>`;
   }
   function render() {
     if (visible) persistUI();
@@ -845,15 +1056,29 @@
         `<div class="empty"><div class="eyebrow">REAL POSTS FROM YOUR X</div><h2>Bring your timeline into MyX.</h2><p>Collect Following and For You from X’s own tabs. Each collection scrolls up to 12 screens; continue collecting older posts as needed.</p><div class="tools"><button class="primary blue" data-collect="following">Collect Following</button><button class="secondary" data-collect="forYou">Collect For You</button><button class="secondary" data-collect="older">Collect older Following</button></div><p>Verify candidate authors against their X profiles so discovery never knowingly includes someone you already follow.</p><button class="secondary" id="verify" ${unknown.length ? "" : "disabled"}>Verify up to 5 discovery authors</button><p class="tiny">${unknown.length} unverified candidates. Verification only reads profiles; it does not follow anyone.</p><div class="rule"></div><p>Replies missing from X’s Following tab cannot be recovered by this extension. Activity timestamps are read from timeline responses when supplied by X. Missing times retain X’s observed order. This is a collected view, not a complete archive.</p></div>`;
       return;
     }
-    let ps = M.feed(data, prefs);
+    const eligible = M.feed(data, prefs);
+    let ps = readerSnapshot
+      ? M.restoreRows(eligible, readerSnapshot.rows)
+      : eligible;
     if (ps.length) paintPosts(ps);
     else
       R("#feed").innerHTML =
         `<div class="empty"><h2>${prefs.search ? "No matching posts." : "Your people, in time order."}</h2><p>${prefs.search ? "Try a different search." : "Start by collecting your Following feed. Then collect For You and verify discovery authors to build your custom feed mix."}</p><button class="primary blue" data-view="sources">Set up your feed</button></div>`;
-    queuedUpdates = false;
-    R("#new-posts").hidden = true;
+    const restoredKeys = new Set(
+      readerSnapshot?.rows.map(
+        (r) => (r.discovery ? "discovery:" : "") + r.key,
+      ),
+    );
+    queuedUpdates =
+      !!readerSnapshot &&
+      eligible.some(
+        (p) =>
+          !restoredKeys.has((p.discovery ? "discovery:" : "") + M.eventKey(p)),
+      );
+    R("#new-posts").hidden = !queuedUpdates;
     if (restoreReaderScroll) {
-      R(".app").scrollTop = prefs.readerScroll || 0;
+      if (anchorRestore) restoreReadingPosition();
+      else R(".app").scrollTop = prefs.readerScroll || 0;
       restoreReaderScroll = false;
     }
     const followingCount = ps.filter((p) => !p.discovery).length;
@@ -890,6 +1115,7 @@
     if (modelReady) refreshLatest();
   }
   function hide() {
+    releaseReaderSnapshot();
     sessionStorage.removeItem("myx-shell-open");
     document.documentElement.classList.remove("myx-native", "myx-open");
     visible = false;
@@ -910,6 +1136,7 @@
   launcher.onclick = show;
   R("#native").onclick = () => {
     if (surface !== "feed") {
+      if (restoreReader(prefs.readerReturn)) return;
       leaveNative();
       view = "home";
       show();
@@ -1014,6 +1241,7 @@
     }
   }
   async function navigate(target, next) {
+    if (surface === "feed") checkpointReader();
     pending = { ...next, account };
     await save();
     visible = true;
@@ -1048,6 +1276,7 @@
       return;
     }
     if (action === "thread") return openSurface(p.url, "thread");
+    if (action === "views") return openSurface(p.url + "/analytics", "thread");
     let a = nativeArticle(id);
     if (!a) {
       await navigate(p.url, {
@@ -1171,6 +1400,7 @@
     closeRates();
     hidePreview();
     prefs.accountRules = { seed: current, accounts: {} };
+    releaseReaderSnapshot();
     queuedUpdates = false;
     lastRefreshAttempt = 0;
     data = M.empty(current);
@@ -1362,6 +1592,7 @@
       return;
     }
     if (b.id === "new-posts") {
+      releaseReaderSnapshot();
       queuedUpdates = false;
       R(".app").scrollTop = 0;
       render();
@@ -1390,11 +1621,13 @@
     }
     if (collecting) return;
     if (b.dataset.view) {
+      releaseReaderSnapshot();
       leaveNative();
       view = b.dataset.view;
       render();
     }
     if (b.dataset.tab) {
+      releaseReaderSnapshot();
       leaveNative();
       prefs.tab = b.dataset.tab;
       view = "home";
@@ -1426,6 +1659,7 @@
     }
     if (b.id === "verify") verify();
     if (b.id === "clear") {
+      releaseReaderSnapshot();
       const muted = data.muted || [],
         xMuted = data.xMuted || [],
         synced = data.xMutesSyncedAt;
@@ -1460,11 +1694,13 @@
   root.addEventListener("change", (e) => {
     if (!e.isTrusted) return;
     if (e.target.id === "order") {
+      releaseReaderSnapshot();
       prefs.order = e.target.value;
       save();
       render();
     }
     if (e.target.dataset.pref) {
+      releaseReaderSnapshot();
       prefs[e.target.dataset.pref] = e.target.checked;
       if (e.target.dataset.pref === "discovery") saveMix();
       save();
@@ -1523,7 +1759,7 @@
   }
   async function openSurface(url, kind) {
     if (!url) return;
-    if (surface === "feed") prefs.readerScroll = R(".app").scrollTop;
+    if (surface === "feed") checkpointReader();
     surface = kind;
     await navigate(url, { type: "surface" });
   }
@@ -1533,6 +1769,7 @@
       toast("Enter a valid X username.");
       return;
     }
+    releaseReaderSnapshot();
     data.muted = on
       ? [...new Set([...(data.muted || []), h])]
       : (data.muted || []).filter((v) => v !== h);
@@ -1608,9 +1845,15 @@
   });
   let nativePath = location.pathname;
   setInterval(() => {
+    if (resumingReader) return;
     if (!visible) return;
     if (surface !== "feed" && nativePath !== location.pathname) {
       nativePath = location.pathname;
+      if (
+        nativePath === "/home" &&
+        restoreReader(history.state?.__myxReader || prefs.readerReturn)
+      )
+        return;
       surface = M.surfaceForPath(nativePath) || surface;
       render();
     }
@@ -1641,7 +1884,8 @@
   function acceptTimeline(message) {
     const current = readAccount();
     if (!current || message.account !== current || account !== current) return;
-    const safe = [];
+    const safe = [],
+      seeded = [];
     for (const p of message.items.slice(0, 500)) {
       if (
         !p ||
@@ -1664,12 +1908,18 @@
         data.profiles ||= {};
         for (const raw of p.profiles.slice(0, 2)) {
           const profile = globalThis.MyXProfile.clean(raw);
-          if (profile && [h, actor].includes(profile.handle))
-            data.profiles[profile.handle] = profile;
+          if (profile && [h, actor].includes(profile.handle)) {
+            data.profiles[profile.handle] = globalThis.MyXProfile.combine(
+              data.profiles[profile.handle],
+              profile,
+              true,
+            );
+            seeded.push(profile);
+          }
         }
         const keys = Object.keys(data.profiles);
         keys
-          .slice(0, Math.max(0, keys.length - 100))
+          .slice(0, Math.max(0, keys.length - 200))
           .forEach((k) => delete data.profiles[k]);
       }
       const value = {
@@ -1705,6 +1955,7 @@
           reply: Number(p.counts?.reply) || 0,
           repost: Number(p.counts?.repost) || 0,
           like: Number(p.counts?.like) || 0,
+          views: Number(p.counts?.views) || 0,
         },
         followedActor:
           typeof p.followedActor === "boolean" ? p.followedActor : null,
@@ -1722,6 +1973,8 @@
       }
       safe.push(value);
     }
+    if (seeded.length)
+      msg({ type: "PROFILE_SEED", account, profiles: seeded.slice(0, 100) });
     data.timelineMeta = M.merge(data.timelineMeta || [], safe).slice(-3000);
     if (message.source === "following")
       data.following = M.mergeActivity(data.following, safe, true);
@@ -1794,7 +2047,9 @@
     save();
     render();
   });
-  render();
+  const historyReturn = M.readerCheckpoint(history.state?.__myxReader, account);
+  if (historyReturn) restoreReader(historyReturn);
+  else render();
   host.classList.remove("booting");
   host.removeAttribute("aria-busy");
   root.querySelectorAll("button:disabled,input:disabled").forEach((e) => {

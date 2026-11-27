@@ -228,61 +228,142 @@ test("compact messaging navigation identifies the account from its real Profile 
   };
   assert.equal(P.currentAccount(foreign), "");
 });
-test("profile lookup waits for delayed native avatar hydration before replying", async () => {
-  let clock = 1000,
-    polls = 0,
-    result;
-  const photo = {
-    getAttribute: () => "/writer/photo",
-    textContent: "",
-    querySelector: () => ({
-      src: polls >= 2 ? "https://pbs.twimg.com/profile_images/actual.jpg" : "",
-    }),
-  };
-  const name = { innerText: "Writer\n@writer", querySelector: () => null };
-  const main = {
-    querySelector: (s) =>
-      s.includes("UserName")
-        ? name
-        : s.includes("UserDescription")
-          ? { textContent: "Actual biography" }
-          : null,
-    querySelectorAll: (s) => (s === "a[href]" ? [photo] : []),
-  };
-  const doc = {
-    querySelector: (s) =>
-      s.includes("AccountSwitcher")
-        ? { textContent: "Alice @alice" }
-        : s.includes("primaryColumn")
-          ? main
-          : null,
-  };
-  const context = vm.createContext({
-    URL,
-    document: doc,
-    Date: { now: () => clock },
-    setTimeout: (fn) => {
-      clock += 200;
-      polls++;
-      Promise.resolve().then(fn);
-    },
-    chrome: {
-      runtime: {
-        sendMessage: async (m) => {
-          if (m.type === "PROFILE_CONTEXT")
-            return { account: "alice", handle: "writer" };
-          result = m;
-          return { ok: true };
+for (const knownAvatar of [false, true])
+  test(
+    knownAvatar
+      ? "known post avatars let complete profile details return without an image-only delay"
+      : "profile lookup waits for delayed native avatar hydration before replying",
+    async () => {
+      let clock = 1000,
+        polls = 0,
+        result;
+      const photo = {
+        getAttribute: () => "/writer/photo",
+        textContent: "",
+        querySelector: () => ({
+          src:
+            polls >= 2 ? "https://pbs.twimg.com/profile_images/actual.jpg" : "",
+        }),
+      };
+      const name = { innerText: "Writer\n@writer", querySelector: () => null };
+      const main = {
+        querySelector: (s) =>
+          s.includes("UserName")
+            ? name
+            : s.includes("UserDescription")
+              ? { textContent: "Actual biography" }
+              : null,
+        querySelectorAll: (s) => (s === "a[href]" ? [photo] : []),
+      };
+      const doc = {
+        querySelector: (s) =>
+          s.includes("AccountSwitcher")
+            ? { textContent: "Alice @alice" }
+            : s.includes("primaryColumn")
+              ? main
+              : null,
+      };
+      const context = vm.createContext({
+        URL,
+        document: doc,
+        Date: { now: () => clock },
+        setTimeout: (fn) => {
+          clock += 200;
+          polls++;
+          Promise.resolve().then(fn);
         },
-      },
+        chrome: {
+          runtime: {
+            sendMessage: async (m) => {
+              if (m.type === "PROFILE_CONTEXT")
+                return {
+                  account: "alice",
+                  handle: "writer",
+                  avatar: knownAvatar
+                    ? "https://pbs.twimg.com/profile_images/known.jpg"
+                    : "",
+                };
+              result = m;
+              return { ok: true };
+            },
+          },
+        },
+      });
+      vm.runInContext(fs.readFileSync("extension/profile.js", "utf8"), context);
+      await context.MyXProfile.lookup();
+      assert.equal(
+        result.profile.avatar,
+        knownAvatar
+          ? "https://pbs.twimg.com/profile_images/known.jpg"
+          : "https://pbs.twimg.com/profile_images/actual.jpg",
+      );
+      assert.equal(result.profile.bio, "Actual biography");
+      assert.equal(polls, knownAvatar ? 0 : 2);
     },
-  });
-  vm.runInContext(fs.readFileSync("extension/profile.js", "utf8"), context);
-  await context.MyXProfile.lookup();
-  assert.equal(
-    result.profile.avatar,
-    "https://pbs.twimg.com/profile_images/actual.jpg",
   );
-  assert.equal(result.profile.bio, "Actual biography");
-  assert.equal(polls, 2);
+
+// Regression: hovering a cached profile must not open a new native page or lose its details.
+test("fresh seeded profile details are reused across reader tabs and partial updates preserve bio", async () => {
+  const w = worker();
+  await w.send({
+    type: "PROFILE_SEED",
+    account: "alice",
+    profiles: [
+      {
+        handle: "writer",
+        name: "Writer",
+        bio: "Public biography",
+        followersCount: "1800",
+        avatar: "https://pbs.twimg.com/profile_images/w.jpg",
+      },
+    ],
+  });
+  await w.send({
+    type: "PROFILE_SEED",
+    account: "alice",
+    profiles: [{ handle: "writer", name: "Writer", capturedAt: Date.now() }],
+  });
+  const result = await w.send(
+    { type: "PROFILE_GET", account: "alice", handle: "writer" },
+    2,
+  );
+  assert.equal(w.created.length, 0);
+  assert.equal(result.profile.bio, "Public biography");
+  assert.equal(result.profile.followersCount, "1,800");
+  assert.ok(result.profile.avatar.endsWith("w.jpg"));
+  const foreign = w.send(
+    { type: "PROFILE_GET", account: "bob", handle: "writer" },
+    3,
+  );
+  await tick();
+  assert.equal(w.created.length, 1);
+  await [...w.timers.values()][0]();
+  assert.equal((await foreign).profile, undefined);
+});
+test("repeated preview requests share one pending lookup and carry the known avatar", async () => {
+  const w = worker();
+  const a = w.send({
+    type: "PROFILE_GET",
+    account: "alice",
+    handle: "writer",
+    avatar: "https://pbs.twimg.com/profile_images/w.jpg",
+  });
+  await tick();
+  const b = w.send({ type: "PROFILE_GET", account: "alice", handle: "writer" });
+  await tick();
+  assert.equal(w.created.length, 1);
+  assert.equal(
+    (await w.send({ type: "PROFILE_CONTEXT" }, 100)).avatar,
+    "https://pbs.twimg.com/profile_images/w.jpg",
+  );
+  await w.send(
+    {
+      type: "PROFILE_RESULT",
+      account: "alice",
+      profile: { handle: "writer", bio: "Biography" },
+    },
+    100,
+  );
+  assert.equal((await a).profile.bio, "Biography");
+  assert.equal((await b).profile.bio, "Biography");
 });

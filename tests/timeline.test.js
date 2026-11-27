@@ -152,3 +152,12 @@ test("video extraction retains the highest bitrate native MP4 and poster on repo
   assert.equal(p.videos[0].poster, "https://pbs.twimg.com/video.jpg");
   assert.equal(p.kind, "repost");
 });
+
+test("the action row view counter belongs to the original post even on reposts", () => {
+  const original = tweet("801", "writer"),
+    rt = tweet("802", "alice");
+  original.views = { count: "89000" };
+  rt.views = { count: "7" };
+  rt.legacy.retweeted_status_result = { result: original };
+  assert.equal(T.extract(response(rt))[0].counts.views, 89000);
+});

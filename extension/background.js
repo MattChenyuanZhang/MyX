@@ -4,6 +4,42 @@ const profileLookups = new Map();
 const feedLookups = new Map();
 const feedParents = new Set();
 const ruleWrites = new Map();
+const profileWrites = new Map();
+async function cacheProfiles(account, profiles, partial = false) {
+  const k = "myx:profile-cache:" + account;
+  const previous = profileWrites.get(k) || Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      const records = (await chrome.storage.session.get(k))[k] || {};
+      for (const raw of profiles.slice(0, 100)) {
+        const p = globalThis.MyXProfile.clean(raw);
+        if (!p) continue;
+        const prior = Object.hasOwn(records, p.handle)
+          ? records[p.handle]
+          : null;
+        const value = globalThis.MyXProfile.combine(prior, p, partial);
+        delete records[p.handle];
+        Object.defineProperty(records, p.handle, {
+          value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      }
+      Object.keys(records)
+        .slice(0, Math.max(0, Object.keys(records).length - 200))
+        .forEach((h) => delete records[h]);
+      await chrome.storage.session.set({ [k]: records });
+      return records;
+    });
+  profileWrites.set(k, next);
+  try {
+    return await next;
+  } finally {
+    if (profileWrites.get(k) === next) profileWrites.delete(k);
+  }
+}
 async function finishFeed(id, result) {
   const job = feedLookups.get(id);
   if (!job) return;
@@ -135,7 +171,20 @@ async function requestProfile(m, sender) {
   ];
   if (cached?.data?.account && cached.data.account !== m.account)
     return { error: "Account changed." };
+  const shared = (
+    await chrome.storage.session.get("myx:profile-cache:" + m.account)
+  )["myx:profile-cache:" + m.account];
+  const profile = globalThis.MyXProfile.clean(
+    shared?.[m.handle] || cached?.data?.profiles?.[m.handle],
+  );
+  if (
+    globalThis.MyXProfile.hasDetails(profile) &&
+    Date.now() - profile.capturedAt < 1800000
+  )
+    return { profile };
   for (const [id, job] of profileLookups) {
+    if (job.parent === sender.tab.id && job.handle === m.handle)
+      return job.result;
     if (job.parent === sender.tab.id)
       await finishProfile(id, { error: "Preview changed." });
   }
@@ -157,6 +206,12 @@ async function requestProfile(m, sender) {
     parent: sender.tab.id,
     account: m.account,
     handle: m.handle,
+    avatar:
+      globalThis.MyXProfile.clean({ handle: m.handle, avatar: m.avatar })
+        ?.avatar ||
+      profile?.avatar ||
+      "",
+    result,
     resolve,
     timer,
   });
@@ -196,12 +251,16 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     }
     if (m.type === "PROFILE_CONTEXT") {
       const job = profileLookups.get(sender.tab.id);
-      return job ? { handle: job.handle, account: job.account } : null;
+      return job
+        ? { handle: job.handle, account: job.account, avatar: job.avatar }
+        : null;
     }
     if (m.type === "PROFILE_RESULT") {
       const job = profileLookups.get(sender.tab.id);
       if (!job || job.account !== m.account) return null;
       const profile = globalThis.MyXProfile.clean(m.profile);
+      if (profile?.handle === job.handle)
+        await cacheProfiles(job.account, [profile]);
       await finishProfile(
         sender.tab.id,
         profile?.handle === job.handle
@@ -215,6 +274,12 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       typeof m.account === "string" && /^[a-z0-9_]{1,15}$/.test(m.account)
         ? m.account
         : null;
+    if (m.type === "PROFILE_SEED" && account && Array.isArray(m.profiles)) {
+      const current = (await chrome.storage.session.get(k))[k]?.data?.account;
+      if (current && current !== account) return null;
+      await cacheProfiles(account, m.profiles, true);
+      return { ok: true };
+    }
     const mixKey = account && "myx:mix:" + account;
     if (m.type === "RULES_GET" && account) return rulesFor(account);
     if (

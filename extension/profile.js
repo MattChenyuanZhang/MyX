@@ -46,6 +46,27 @@
       return "";
     }
   }
+  function hasDetails(p) {
+    return !!(p && (p.bio || p.followersCount || p.followingCount));
+  }
+  function combine(old, next, partial = false) {
+    const p = clean(next);
+    if (!p) return old || null;
+    if (!old) return p;
+    return {
+      ...p,
+      avatar: p.avatar || old.avatar,
+      ...(partial
+        ? {
+            bio: p.bio || old.bio,
+            followersCount: p.followersCount || old.followersCount,
+            followingCount: p.followingCount || old.followingCount,
+            following: p.following ?? old.following,
+            capturedAt: hasDetails(p) ? p.capturedAt : old.capturedAt,
+          }
+        : {}),
+    };
+  }
   function read(doc, handle) {
     if (!valid(handle)) return null;
     const main = doc.querySelector('[data-testid="primaryColumn"]');
@@ -119,12 +140,18 @@
       if (
         account === context.account &&
         profile &&
-        (profile.avatar || Date.now() - profileReadyAt >= 1200)
+        (hasDetails(profile) || Date.now() - profileReadyAt >= 1200) &&
+        (profile.avatar ||
+          context.avatar ||
+          Date.now() - profileReadyAt >= 1200)
       ) {
         await chrome.runtime.sendMessage({
           type: "PROFILE_RESULT",
           account,
-          profile,
+          profile: {
+            ...profile,
+            avatar: profile.avatar || context.avatar || "",
+          },
         });
         return;
       }
@@ -136,5 +163,12 @@
       error: "X did not return this profile.",
     });
   }
-  scope.MyXProfile = { clean, currentAccount, read, lookup };
+  scope.MyXProfile = {
+    clean,
+    currentAccount,
+    read,
+    lookup,
+    hasDetails,
+    combine,
+  };
 })(globalThis);

@@ -68,6 +68,8 @@ window.chrome = {
           followedActor: true,
           text: "Fixture account sampling activity " + i,
           name: "Friend",
+          counts:
+            i === 0 ? { reply: 46, repost: 102, like: 1800, views: 89000 } : {},
           video: i === 0,
           videos:
             i === 0
@@ -108,7 +110,9 @@ window.chrome = {
         );
         return { ok: true };
       }
-      if (m.type === "PROFILE_GET")
+      if (m.type === "PROFILE_GET") {
+        if (new URLSearchParams(location.search).has("slow-profile"))
+          await new Promise((resolve) => setTimeout(resolve, 1800));
         return {
           profile: {
             handle: m.handle,
@@ -121,6 +125,7 @@ window.chrome = {
             capturedAt: Date.now(),
           },
         };
+      }
       if (m.type === "MUTES_GET")
         return JSON.parse(
           sessionStorage.getItem("fixture-prefs-" + m.account) ||
@@ -337,3 +342,37 @@ const wireFixtureVideo = () => {
   mapVideo();
 };
 wireFixtureVideo();
+
+// Explicit provider control exercises arrivals while the reader is on a native surface.
+const arrival = document.createElement("button");
+arrival.textContent = "Simulate new Following arrival";
+arrival.id = "simulate-arrival";
+arrival.onclick = () => {
+  const id = String(
+    5000 + Number(sessionStorage.getItem("fixture-arrivals") || 0) + 1,
+  );
+  sessionStorage.setItem("fixture-arrivals", String(Number(id) - 5000));
+  window.postMessage(
+    {
+      type: "MYX_TIMELINE_ITEMS_V1",
+      account,
+      source: "following",
+      items: [
+        {
+          id,
+          eventId: id,
+          eventTime: Date.now(),
+          time: Date.now(),
+          handle: "friend",
+          name: "Friend",
+          kind: "post",
+          followedActor: true,
+          text: "Arrival while reading another page " + id,
+        },
+      ],
+    },
+    location.origin,
+  );
+  notice("New Following arrival simulated");
+};
+document.querySelector("header").append(arrival);

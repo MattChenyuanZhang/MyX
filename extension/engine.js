@@ -156,6 +156,41 @@
       ? Math.max(0, Math.min(100, p))
       : 100 / 11;
   }
+  function formatCount(value) {
+    if (value === null || value === undefined || value === "") return "";
+    const number = Number(String(value).replace(/,/g, ""));
+    if (!Number.isFinite(number)) return String(value).slice(0, 30);
+    if (number === 0) return "";
+    return new Intl.NumberFormat(
+      "en-US",
+      number >= 1000 ? { notation: "compact", maximumFractionDigits: 1 } : {},
+    ).format(number);
+  }
+  function restoreRows(current, rows) {
+    const byKey = new Map(
+      current.map((p) => [(p.discovery ? "discovery:" : "") + eventKey(p), p]),
+    );
+    return rows
+      .map((row) => byKey.get((row.discovery ? "discovery:" : "") + row.key))
+      .filter(Boolean);
+  }
+  function readerCheckpoint(raw, account) {
+    if (
+      !raw ||
+      raw.account !== account ||
+      !["home", "sources", "settings"].includes(raw.view) ||
+      !Array.isArray(raw.rows)
+    )
+      return null;
+    return {
+      ...raw,
+      rows: raw.rows
+        .slice(0, 10000)
+        .filter((r) => r && typeof r.key === "string" && r.key.length < 150),
+      scroll: Number.isFinite(raw.scroll) ? Math.max(0, raw.scroll) : 0,
+      anchorTop: Number.isFinite(raw.anchorTop) ? raw.anchorTop : 0,
+    };
+  }
   function activityAccount(p) {
     return handle(p.kind === "repost" ? p.actor : p.handle);
   }
@@ -306,6 +341,9 @@
     };
   }
   root.MyXModel = {
+    formatCount,
+    restoreRows,
+    readerCheckpoint,
     activityAccount,
     accountRate,
     sampleRank,
