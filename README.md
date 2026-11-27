@@ -1,4 +1,4 @@
-# MyX
+# MyX 2.0
 
 A Chrome Manifest V3 extension that reads your signed-in X timeline, keeps native interactions and History inside the MyX shell, and offers account mute filtering. No X developer account, API key, OpenAI login, or paid backend is required.
 

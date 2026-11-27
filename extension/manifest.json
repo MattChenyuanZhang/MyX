@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MyX \u2014 Your following, your pace",
-  "version": "0.7.2",
+  "version": "2.0.0",
   "description": "A chronological reader for posts loaded from your X Following feed, with an adjustable share of verified discoveries from your own For You feed. Uses X's native controls.",
   "permissions": ["storage"],
   "background": {
